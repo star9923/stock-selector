@@ -10,7 +10,8 @@
       "Bash(python:*)",
       "Bash(env:*)",
       "Bash(git init:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(cp:*)"
     ]
   }
 }
