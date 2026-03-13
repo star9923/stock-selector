@@ -56,44 +56,54 @@ def get_daily_history(code: str, days: int = 120) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_realtime_quotes(codes: list) -> pd.DataFrame:
+def get_realtime_quotes(codes: list, max_workers: int = 8) -> pd.DataFrame:
     """
-    获取多只股票实时行情（使用历史数据最新一天作为替代）
+    获取多只股票实时行情（并发版）
     :param codes: 股票代码列表
+    :param max_workers: 并发线程数
     :return: DataFrame
     """
     from tqdm import tqdm
-    results = []
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    print(f"   使用历史数据获取最新行情（共 {len(codes)} 只）...")
-    for code in tqdm(codes[:500]):  # 限制500只避免太慢
+    def _fetch_one(code):
         try:
             df = ak.stock_zh_a_hist(
                 symbol=code,
                 period="daily",
                 start_date=(datetime.today() - timedelta(days=10)).strftime("%Y%m%d"),
                 end_date=datetime.today().strftime("%Y%m%d"),
-                adjust="qfq"
+                adjust="qfq",
             )
             if df.empty:
-                continue
-
+                return None
             latest = df.iloc[-1]
-            results.append({
-                "code": code,
-                "name": _STOCK_MAPPING.get(code, code),  # 使用本地映射
-                "price": latest.get("收盘", 0),
-                "pct_change": latest.get("涨跌幅", 0),
-                "volume": latest.get("成交量", 0),
-                "turnover": latest.get("成交额", 0),
+            return {
+                "code":         code,
+                "name":         _STOCK_MAPPING.get(code, code),
+                "price":        latest.get("收盘", 0),
+                "pct_change":   latest.get("涨跌幅", 0),
+                "volume":       latest.get("成交量", 0),
+                "turnover":     latest.get("成交额", 0),
                 "turnover_rate": latest.get("换手率", 0),
-                "pe": 0,  # 历史数据无PE/PB
-                "pb": 0,
-                "market_cap": 0,
-                "float_cap": latest.get("成交额", 0) * 100,  # 粗略估算
-            })
-        except:
-            continue
+                "pe":           0,
+                "pb":           0,
+                "market_cap":   0,
+                "float_cap":    latest.get("成交额", 0) * 100,
+            }
+        except Exception:
+            return None
+
+    target_codes = codes[:500]
+    print(f"   并发获取最新行情（共 {len(target_codes)} 只，{max_workers} 线程）...")
+
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_fetch_one, code): code for code in target_codes}
+        for future in tqdm(as_completed(futures), total=len(futures), desc="行情获取"):
+            result = future.result()
+            if result is not None:
+                results.append(result)
 
     return pd.DataFrame(results)
 
