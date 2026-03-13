@@ -310,7 +310,11 @@
                 </div>
                 <div class="control-group">
                     <label>基本面权重</label>
-                    <input type="number" id="fundWeight" value="0.4" min="0" max="1" step="0.1">
+                    <input type="number" id="fundWeight" value="0.3" min="0" max="1" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label>情绪面权重</label>
+                    <input type="number" id="sentimentWeight" value="0.2" min="0" max="1" step="0.1">
                 </div>
                 <button class="btn btn-primary" onclick="runSelection()">开始选股</button>
             </div>
@@ -534,7 +538,9 @@
                             <th>市净率</th>
                             <th>技术分</th>
                             <th>基本分</th>
+                            <th>情绪分</th>
                             <th>综合分</th>
+                            <th>所属板块</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -552,7 +558,9 @@
                         <td>${row.pb ? row.pb.toFixed(2) : '-'}</td>
                         <td>${formatScore(row.tech_score)}</td>
                         <td>${formatScore(row.fund_score)}</td>
+                        <td>${formatScore(row.sentiment_score)}</td>
                         <td>${formatScore(row.total_score)}</td>
+                        <td>${row.board_name || '-'}</td>
                     </tr>
                 `;
             });
@@ -578,6 +586,7 @@
                 min_score: parseFloat(document.getElementById('minScore').value),
                 tech_weight: parseFloat(document.getElementById('techWeight').value),
                 fund_weight: parseFloat(document.getElementById('fundWeight').value),
+                sentiment_weight: parseFloat(document.getElementById('sentimentWeight').value),
             };
 
             try {
