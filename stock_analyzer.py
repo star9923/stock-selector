@@ -52,23 +52,31 @@ def analyze_stock(code: str) -> dict:
         hist = add_indicators(hist)
         tech_score = score_technical(hist)
 
+        import math
+        def sf(v):
+            try:
+                f = float(v)
+                return 0 if math.isnan(f) or math.isinf(f) else f
+            except (TypeError, ValueError):
+                return 0
+
         latest_with_ind = hist.iloc[-1]
         result["technical"] = {
             "score": tech_score,
-            "ma5": float(latest_with_ind.get("ma5", 0)),
-            "ma10": float(latest_with_ind.get("ma10", 0)),
-            "ma20": float(latest_with_ind.get("ma20", 0)),
-            "ma60": float(latest_with_ind.get("ma60", 0)),
-            "macd": float(latest_with_ind.get("macd", 0)),
-            "macd_signal": float(latest_with_ind.get("macd_signal", 0)),
-            "macd_hist": float(latest_with_ind.get("macd_hist", 0)),
-            "rsi": float(latest_with_ind.get("rsi", 0)),
-            "kdj_k": float(latest_with_ind.get("kdj_k", 0)),
-            "kdj_d": float(latest_with_ind.get("kdj_d", 0)),
-            "kdj_j": float(latest_with_ind.get("kdj_j", 0)),
-            "boll_upper": float(latest_with_ind.get("boll_upper", 0)),
-            "boll_mid": float(latest_with_ind.get("boll_mid", 0)),
-            "boll_lower": float(latest_with_ind.get("boll_lower", 0)),
+            "ma5": sf(latest_with_ind.get("ma5", 0)),
+            "ma10": sf(latest_with_ind.get("ma10", 0)),
+            "ma20": sf(latest_with_ind.get("ma20", 0)),
+            "ma60": sf(latest_with_ind.get("ma60", 0)),
+            "macd_dif": sf(latest_with_ind.get("macd_dif", 0)),
+            "macd_dea": sf(latest_with_ind.get("macd_dea", 0)),
+            "macd_bar": sf(latest_with_ind.get("macd_bar", 0)),
+            "rsi": sf(latest_with_ind.get("rsi14", 0)),
+            "kdj_k": sf(latest_with_ind.get("kdj_k", 0)),
+            "kdj_d": sf(latest_with_ind.get("kdj_d", 0)),
+            "kdj_j": sf(latest_with_ind.get("kdj_j", 0)),
+            "boll_upper": sf(latest_with_ind.get("boll_upper", 0)),
+            "boll_mid": sf(latest_with_ind.get("boll_mid", 0)),
+            "boll_lower": sf(latest_with_ind.get("boll_lower", 0)),
         }
 
         # 4. 基本面分析
@@ -83,9 +91,9 @@ def analyze_stock(code: str) -> dict:
         fund_score = score_fundamental(realtime_dict, financial)
         result["fundamental"] = {
             "score": fund_score,
-            "roe": financial.get("roe", 0),
-            "eps": financial.get("eps", 0),
-            "gross_margin": financial.get("gross_margin", 0),
+            "roe": sf(financial.get("roe", 0)),
+            "eps": sf(financial.get("eps", 0)),
+            "gross_margin": sf(financial.get("gross_margin", 0)),
         }
 
         # 5. 价格数据（最近60天）
@@ -134,16 +142,17 @@ def generate_signals(hist: pd.DataFrame, tech_score: dict, fund_score: dict) -> 
         signals.append({"type": "bearish", "signal": "空头排列", "desc": "短中长期均线呈空头排列"})
 
     # MACD信号
-    if latest["macd_hist"] > 0 and prev["macd_hist"] <= 0:
+    if latest["macd_bar"] > 0 and prev["macd_bar"] <= 0:
         signals.append({"type": "bullish", "signal": "MACD金叉", "desc": "MACD柱状图由负转正"})
-    elif latest["macd_hist"] < 0 and prev["macd_hist"] >= 0:
+    elif latest["macd_bar"] < 0 and prev["macd_bar"] >= 0:
         signals.append({"type": "bearish", "signal": "MACD死叉", "desc": "MACD柱状图由正转负"})
 
     # RSI信号
-    if latest["rsi"] < 30:
-        signals.append({"type": "bullish", "signal": "RSI超卖", "desc": f"RSI={latest['rsi']:.1f}，处于超卖区域"})
-    elif latest["rsi"] > 70:
-        signals.append({"type": "bearish", "signal": "RSI超买", "desc": f"RSI={latest['rsi']:.1f}，处于超买区域"})
+    rsi = latest.get("rsi14", 0)
+    if rsi < 30:
+        signals.append({"type": "bullish", "signal": "RSI超卖", "desc": f"RSI={rsi:.1f}，处于超卖区域"})
+    elif rsi > 70:
+        signals.append({"type": "bearish", "signal": "RSI超买", "desc": f"RSI={rsi:.1f}，处于超买区域"})
 
     # KDJ信号
     if latest["kdj_k"] < 20 and latest["kdj_d"] < 20:
