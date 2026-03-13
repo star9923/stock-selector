@@ -27,17 +27,21 @@ def select_stocks():
     params = request.json or {}
     top_n = params.get("top", 20)
     min_score = params.get("min_score", 40.0)
-    tech_weight = params.get("tech_weight", 0.6)
-    fund_weight = params.get("fund_weight", 0.4)
-    max_workers = min(int(params.get("max_workers", 8)), 16)  # 最多16线程
+    tech_weight = params.get("tech_weight", 0.5)
+    fund_weight = params.get("fund_weight", 0.3)
+    sentiment_weight = params.get("sentiment_weight", 0.2)
+    max_workers = min(int(params.get("max_workers", 8)), 16)
+    enable_sentiment = params.get("enable_sentiment", True)
 
     try:
         df = run_selection(
             top_n=top_n,
             tech_weight=tech_weight,
             fund_weight=fund_weight,
+            sentiment_weight=sentiment_weight,
             min_score=min_score,
             max_workers=max_workers,
+            enable_sentiment=enable_sentiment,
         )
 
         if df.empty:
