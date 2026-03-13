@@ -29,6 +29,7 @@ def select_stocks():
     min_score = params.get("min_score", 40.0)
     tech_weight = params.get("tech_weight", 0.6)
     fund_weight = params.get("fund_weight", 0.4)
+    max_workers = min(int(params.get("max_workers", 8)), 16)  # 最多16线程
 
     try:
         df = run_selection(
@@ -36,6 +37,7 @@ def select_stocks():
             tech_weight=tech_weight,
             fund_weight=fund_weight,
             min_score=min_score,
+            max_workers=max_workers,
         )
 
         if df.empty:
