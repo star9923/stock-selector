@@ -543,10 +543,6 @@
                     <span class="icon">🔥</span>
                     <span>板块热度</span>
                 </div>
-                <div class="nav-item" onclick="switchTab('export')">
-                    <span class="icon">📥</span>
-                    <span>数据导出</span>
-                </div>
                 <div class="nav-item" onclick="switchTab('settings')">
                     <span class="icon">⚙️</span>
                     <span>系统设置</span>
@@ -679,17 +675,6 @@
                             <div id="sectorDetailContent"></div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- 数据导出页面 -->
-            <div id="exportTab" class="tab-content">
-                <div class="header">
-                    <h2>数据导出</h2>
-                    <p>导出选股结果和分析报告</p>
-                </div>
-                <div class="content-wrapper">
-                    <div class="empty">数据导出功能开发中...</div>
                 </div>
             </div>
 
@@ -873,8 +858,7 @@
                 'select': { nav: 0, content: 'selectTab' },
                 'analyze': { nav: 1, content: 'analyzeTab' },
                 'sector': { nav: 2, content: 'sectorTab' },
-                'export': { nav: 3, content: 'exportTab' },
-                'settings': { nav: 4, content: 'settingsTab' }
+                'settings': { nav: 3, content: 'settingsTab' }
             };
 
             const selected = tabMap[tab];
