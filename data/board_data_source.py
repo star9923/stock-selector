@@ -4,7 +4,7 @@ board_data_source.py - 板块数据多源获取（优化版）
 1. 板块列表 - 长期缓存（30天），优先同花顺
 2. 板块行情 - 短期缓存（1小时），仅东方财富
 """
-import akshare_config
+import data.akshare_config
 import akshare as ak
 import pandas as pd
 import os
@@ -12,8 +12,8 @@ import json
 from datetime import datetime, timedelta
 
 
-SETTINGS_FILE = os.path.join(os.path.dirname(__file__), '.cache', 'settings.json')
-CACHE_DIR = os.path.join(os.path.dirname(__file__), '.cache')
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'settings.json')
+CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache')
 BOARD_LIST_CACHE = os.path.join(CACHE_DIR, 'board_list_cache.json')
 BOARD_QUOTE_CACHE = os.path.join(CACHE_DIR, 'board_quote_cache.json')
 

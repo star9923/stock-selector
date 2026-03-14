@@ -4,13 +4,13 @@ stock_analyzer.py - 个股深度分析模块
 import pandas as pd
 import json
 from datetime import datetime
-from data_fetcher import get_daily_history, get_financial_indicator, _STOCK_MAPPING
-from indicators import add_indicators, score_technical
-from fundamental import score_fundamental
-from sentiment import score_sentiment, get_sentiment_data
+from data.data_fetcher import get_daily_history, _get_daily_history_em, _get_daily_history_sina, get_financial_indicator, _STOCK_MAPPING
+from core.indicators import add_indicators, score_technical
+from core.fundamental import score_fundamental
+from services.sentiment import score_sentiment, get_sentiment_data
 
 
-def analyze_stock(code: str, enable_sentiment: bool = True) -> dict:
+def analyze_stock(code: str, enable_sentiment: bool = True, hist_source: str = "auto") -> dict:
     """
     深度分析单只股票
     :param code: 股票代码
@@ -32,9 +32,20 @@ def analyze_stock(code: str, enable_sentiment: bool = True) -> dict:
     }
 
     try:
-        # 1. 获取历史数据（使用备用方案）
-        from stock_data_fallback import get_stock_history_with_fallback
-        hist = get_stock_history_with_fallback(code, days=120)
+        # 1. 获取历史数据（根据数据源选择）
+        from data.stock_data_fallback import get_stock_history_with_fallback
+
+        source_names = {"auto": "自动选择", "sina": "新浪财经", "em": "东方财富"}
+        print(f"   历史数据源: {source_names.get(hist_source, hist_source)}")
+
+        if hist_source == "sina":
+            hist = _get_daily_history_sina(code, days=120)
+        elif hist_source == "em":
+            hist = _get_daily_history_em(code, days=120)
+        else:
+            # auto: 使用多源降级
+            hist = get_stock_history_with_fallback(code, days=120)
+
         if hist.empty or len(hist) < 60:
             result["error"] = "历史数据不足"
             return result

@@ -14,7 +14,9 @@
       "Bash(cp:*)",
       "Bash(ping:*)",
       "Bash(NO_PROXY='*' python3:*)",
-      "Bash(chmod +x:*)"
+      "Bash(chmod +x:*)",
+      "Bash(ANTHROPIC_BASE_URL=\"https://subus.imds.ai\" ANTHROPIC_API_KEY=\"sk-3bc82fb5237727322b968018ffd626baf2b7bef4c9a2231c6614d208f9e04022\" python3:*)",
+      "Bash(/usr/bin/python3:*)"
     ]
   }
 }

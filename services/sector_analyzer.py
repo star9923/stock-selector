@@ -1,10 +1,10 @@
 """
 sector_analyzer.py - 板块分析模块
 """
-import akshare_config  # 必须在 akshare 之前导入
+import data.akshare_config  # 必须在 akshare 之前导入
 import pandas as pd
 from typing import Dict, List
-from sentiment import get_board_sentiment, get_stock_board_mapping, retry_on_failure
+from services.sentiment import get_board_sentiment, get_stock_board_mapping, retry_on_failure
 import akshare as ak
 
 
@@ -48,7 +48,7 @@ def analyze_sector(sector_name: str) -> dict:
 
     try:
         # 1. 获取板块成分股（使用备用方案）
-        from sector_data_fallback import get_sector_stocks_with_fallback
+        from data.sector_data_fallback import get_sector_stocks_with_fallback
         stocks_df = get_sector_stocks_with_fallback(sector_name)
 
         if stocks_df.empty:
@@ -69,7 +69,7 @@ def analyze_sector(sector_name: str) -> dict:
         }
 
         # 3. 获取板块情绪
-        from sector_data_fallback import get_board_sentiment_with_fallback
+        from data.sector_data_fallback import get_board_sentiment_with_fallback
         board_sentiment = get_board_sentiment_with_fallback()
         if not board_sentiment.empty:
             sector_row = board_sentiment[board_sentiment["board_name"] == sector_name]
@@ -105,7 +105,7 @@ def get_all_sectors() -> List[Dict]:
     """
     try:
         # 优先使用多源获取
-        from board_data_source import get_board_list_multi_source
+        from data.board_data_source import get_board_list_multi_source
         df = get_board_list_multi_source()
 
         if df.empty:
@@ -131,7 +131,7 @@ def get_hot_sectors(top_n: int = 10) -> pd.DataFrame:
     """
     try:
         # 使用带备用方案的获取方法
-        from sector_data_fallback import get_board_sentiment_with_fallback
+        from data.sector_data_fallback import get_board_sentiment_with_fallback
         board_sentiment = get_board_sentiment_with_fallback()
 
         if board_sentiment.empty:

@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 
 
-STOCK_CACHE_DIR = os.path.join(os.path.dirname(__file__), '.cache', 'stock_history')
+STOCK_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'stock_history')
 
 
 def save_stock_history_cache(code: str, df: pd.DataFrame):
@@ -73,7 +73,7 @@ def get_stock_history_with_fallback(code: str, days: int = 120) -> pd.DataFrame:
     1. 尝试从API获取
     2. 从缓存加载（1天内）
     """
-    from data_fetcher import get_daily_history
+    from data.data_fetcher import get_daily_history
 
     # 1. 尝试从API获取
     df = get_daily_history(code, days)

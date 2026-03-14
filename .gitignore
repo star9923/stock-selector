@@ -1,0 +1,7 @@
+.env
+.cache/
+.claude/
+__pycache__/
+*.pyc
+exports/
+ai_config.json

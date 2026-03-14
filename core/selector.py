@@ -4,7 +4,7 @@ selector.py - 智能选股核心逻辑（多线程并发版 + 情绪分析）
 import pandas as pd
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from data_fetcher import (
+from data.data_fetcher import (
     get_stock_list,
     get_daily_history,
     get_realtime_quotes,
@@ -13,9 +13,9 @@ from data_fetcher import (
     get_realtime_quotes_from_xueqiu,
     get_financial_indicator,
 )
-from indicators import add_indicators, score_technical
-from fundamental import score_fundamental, filter_basic
-from sentiment import score_sentiment, get_sentiment_data
+from core.indicators import add_indicators, score_technical
+from core.fundamental import score_fundamental, filter_basic
+from services.sentiment import score_sentiment, get_sentiment_data
 
 
 def _analyze_single(code, realtime_dict, tech_weight, fund_weight, sentiment_weight, min_score,

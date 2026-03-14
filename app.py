@@ -1,16 +1,19 @@
 """
 app.py - Flask Web 服务（单线程稳定版）
 """
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, render_template, jsonify, request, send_file
 from flask_cors import CORS
-from selector import run_selection
-from stock_analyzer import analyze_stock
-from sector_analyzer import analyze_sector, get_all_sectors, get_hot_sectors
-from export_service import (
+from core.selector import run_selection
+from services.stock_analyzer import analyze_stock
+from services.sector_analyzer import analyze_sector, get_all_sectors, get_hot_sectors
+from services.export_service import (
     export_stock_selection, export_stock_analysis, export_sector_analysis,
     get_export_files, delete_export_file, clean_old_exports
 )
-from data_fetcher import _STOCK_MAPPING
+from data.data_fetcher import _STOCK_MAPPING
 import pandas as pd
 from datetime import datetime
 import os
@@ -100,8 +103,33 @@ def get_cache():
 def analyze(code):
     """分析单只股票"""
     try:
-        result = analyze_stock(code)
+        hist_source = request.args.get("hist_source", "auto")
+        result = analyze_stock(code, hist_source=hist_source)
         return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/ai-analyze/<code>", methods=["POST"])
+def ai_analyze(code):
+    """AI 智能分析"""
+    try:
+        from services.ai_analyzer import analyze_with_ai
+
+        # 先获取股票数据
+        hist_source = request.json.get("hist_source", "auto") if request.json else "auto"
+        stock_data = analyze_stock(code, hist_source=hist_source)
+
+        if not stock_data.get("success"):
+            return jsonify({"success": False, "error": stock_data.get("error", "获取股票数据失败")})
+
+        # 调用 AI 分析
+        ai_result = analyze_with_ai(stock_data)
+
+        return jsonify({
+            "success": True,
+            "analysis": ai_result,
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
@@ -327,6 +355,82 @@ def set_data_source():
         })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/api/settings/ai", methods=["GET"])
+def get_ai_config():
+    """获取 AI 配置（隐藏 API Key）"""
+    try:
+        from services.ai_analyzer import load_ai_config
+        config = load_ai_config()
+        # 隐藏 API Key，只显示前8位和后4位
+        api_key = config.get("api_key", "")
+        if len(api_key) > 12:
+            masked_key = api_key[:8] + "****" + api_key[-4:]
+        elif api_key:
+            masked_key = "****"
+        else:
+            masked_key = ""
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "api_key_masked": masked_key,
+                "has_key": bool(api_key),
+                "base_url": config.get("base_url", ""),
+                "model": config.get("model", "claude-sonnet-4-20250514"),
+                "max_tokens": config.get("max_tokens", 2000),
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/settings/ai", methods=["POST"])
+def set_ai_config():
+    """保存 AI 配置"""
+    try:
+        from services.ai_analyzer import load_ai_config, save_ai_config
+        data = request.json or {}
+
+        config = load_ai_config()
+
+        # 只更新提供的字段
+        if "api_key" in data and data["api_key"]:
+            config["api_key"] = data["api_key"]
+        if "base_url" in data:
+            config["base_url"] = data["base_url"] or "https://api.anthropic.com"
+        if "model" in data and data["model"]:
+            config["model"] = data["model"]
+        if "max_tokens" in data:
+            config["max_tokens"] = int(data["max_tokens"]) if data["max_tokens"] else 2000
+
+        save_ai_config(config)
+        return jsonify({"success": True, "message": "AI 配置已保存"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/api/settings/ai/test", methods=["POST"])
+def test_ai_config():
+    """测试 AI 连接"""
+    try:
+        from services.ai_analyzer import get_client, load_ai_config
+        config = load_ai_config()
+
+        if not config.get("api_key"):
+            return jsonify({"success": False, "message": "请先配置 API Key"})
+
+        client = get_client()
+        response = client.messages.create(
+            model=config.get("model", "claude-sonnet-4-20250514"),
+            max_tokens=50,
+            messages=[{"role": "user", "content": "回复OK两个字"}],
+        )
+        reply = response.content[0].text
+        return jsonify({"success": True, "message": f"连接成功: {reply[:20]}"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"连接失败: {str(e)[:80]}"})
 
 
 @app.route("/api/cache/info", methods=["GET"])

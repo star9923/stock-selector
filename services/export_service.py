@@ -9,7 +9,7 @@ import io
 
 
 # 导出目录
-EXPORT_DIR = os.path.join(os.path.dirname(__file__), 'exports')
+EXPORT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'exports')
 os.makedirs(EXPORT_DIR, exist_ok=True)
 
 

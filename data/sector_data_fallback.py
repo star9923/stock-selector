@@ -8,8 +8,8 @@ import os
 from datetime import datetime, timedelta
 
 
-FALLBACK_CACHE_FILE = os.path.join(os.path.dirname(__file__), '.cache', 'board_sentiment_fallback.json')
-SECTOR_STOCKS_CACHE_DIR = os.path.join(os.path.dirname(__file__), '.cache', 'sector_stocks')
+FALLBACK_CACHE_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'board_sentiment_fallback.json')
+SECTOR_STOCKS_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'sector_stocks')
 
 
 def save_board_data_to_fallback(df: pd.DataFrame):
@@ -56,7 +56,7 @@ def get_board_sentiment_with_fallback() -> pd.DataFrame:
     1. 尝试从API获取
     2. 从备用缓存加载
     """
-    from sentiment import get_board_sentiment
+    from services.sentiment import get_board_sentiment
 
     # 1. 尝试从API获取
     df = get_board_sentiment()
@@ -125,7 +125,7 @@ def get_sector_stocks_with_fallback(sector_name: str) -> pd.DataFrame:
     1. 尝试从API获取
     2. 从缓存加载
     """
-    from sector_analyzer import get_sector_stocks
+    from services.sector_analyzer import get_sector_stocks
 
     # 1. 尝试从API获取
     df = get_sector_stocks(sector_name)

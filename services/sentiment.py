@@ -1,7 +1,7 @@
 """
 sentiment.py - 市场情绪与板块热度分析模块
 """
-import akshare_config  # 必须在 akshare 之前导入
+import data.akshare_config  # 必须在 akshare 之前导入
 import akshare as ak
 import pandas as pd
 from typing import Dict, List
@@ -10,10 +10,10 @@ from functools import wraps
 import json
 import os
 from datetime import datetime, timedelta
-from sector_fallback import update_sector_mapping_with_fallback
+from data.sector_fallback import update_sector_mapping_with_fallback
 
 # 缓存目录
-CACHE_DIR = os.path.join(os.path.dirname(__file__), '.cache')
+CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 
@@ -104,7 +104,7 @@ def get_hot_stocks() -> pd.DataFrame:
 @retry_on_failure(max_retries=3, delay=3, backoff=2)
 def get_board_sentiment() -> pd.DataFrame:
     """获取行业板块实时情绪（涨跌幅、领涨股数量）"""
-    from board_data_source import get_board_sentiment_multi_source
+    from data.board_data_source import get_board_sentiment_multi_source
     return get_board_sentiment_multi_source()
 
 

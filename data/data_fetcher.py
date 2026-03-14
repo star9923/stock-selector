@@ -1,7 +1,7 @@
 """
 data_fetcher.py - AkShare 数据获取模块
 """
-import akshare_config  # 必须在 akshare 之前导入
+import data.akshare_config  # 必须在 akshare 之前导入
 import akshare as ak
 import pandas as pd
 import json
@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 # 加载本地股票映射
 _STOCK_MAPPING = {}
-_mapping_file = os.path.join(os.path.dirname(__file__), "stock_mapping.json")
+_mapping_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stock_mapping.json")
 if os.path.exists(_mapping_file):
     with open(_mapping_file, "r", encoding="utf-8") as f:
         _STOCK_MAPPING = json.load(f)
@@ -25,11 +25,27 @@ def get_stock_list() -> pd.DataFrame:
 
 def get_daily_history(code: str, days: int = 120) -> pd.DataFrame:
     """
-    获取单只股票日线历史数据
+    获取单只股票日线历史数据（多源降级）
+    优先级：东方财富 -> 新浪财经
     :param code: 股票代码，如 '000001'
     :param days: 获取最近 N 天
     :return: DataFrame，含 date/open/high/low/close/volume/turnover
     """
+    # 1. 尝试东方财富
+    df = _get_daily_history_em(code, days)
+    if not df.empty and len(df) >= 60:
+        return df
+
+    # 2. 降级到新浪财经
+    df = _get_daily_history_sina(code, days)
+    if not df.empty and len(df) >= 60:
+        return df
+
+    return pd.DataFrame()
+
+
+def _get_daily_history_em(code: str, days: int = 120) -> pd.DataFrame:
+    """从东方财富获取历史数据"""
     end = datetime.today().strftime("%Y%m%d")
     start = (datetime.today() - timedelta(days=days)).strftime("%Y%m%d")
     try:
@@ -38,7 +54,7 @@ def get_daily_history(code: str, days: int = 120) -> pd.DataFrame:
             period="daily",
             start_date=start,
             end_date=end,
-            adjust="qfq",  # 前复权
+            adjust="qfq",
         )
         df = df.rename(columns={
             "日期": "date",
@@ -52,6 +68,40 @@ def get_daily_history(code: str, days: int = 120) -> pd.DataFrame:
         })
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
+        return df
+    except Exception:
+        return pd.DataFrame()
+
+
+def _get_daily_history_sina(code: str, days: int = 120) -> pd.DataFrame:
+    """从新浪财经获取历史数据"""
+    try:
+        # 新浪需要 sh/sz 前缀
+        if code.startswith("6"):
+            symbol = f"sh{code}"
+        else:
+            symbol = f"sz{code}"
+
+        df = ak.stock_zh_a_daily(symbol=symbol, adjust="qfq")
+
+        if df.empty:
+            return pd.DataFrame()
+
+        # 只取最近 N 天
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").tail(days).reset_index(drop=True)
+
+        # 重命名列以匹配格式
+        rename_map = {
+            "amount": "turnover",
+            "turnover": "turnover_rate",
+        }
+        df = df.rename(columns=rename_map)
+
+        # 确保必要列存在
+        if "turnover_rate" not in df.columns:
+            df["turnover_rate"] = 0
+
         return df
     except Exception:
         return pd.DataFrame()
