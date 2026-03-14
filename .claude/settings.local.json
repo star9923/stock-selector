@@ -11,7 +11,9 @@
       "Bash(env:*)",
       "Bash(git init:*)",
       "Bash(git:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(ping:*)",
+      "Bash(NO_PROXY='*' python3:*)"
     ]
   }
 }
