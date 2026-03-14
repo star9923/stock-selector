@@ -380,7 +380,7 @@ def get_financial_indicator(code: str) -> dict:
     """
     获取股票基本面财务指标（最新一期）
     :param code: 股票代码
-    :return: dict，含 roe/eps/revenue_growth 等
+    :return: dict，含 roe/eps/gross_margin/revenue_growth 等
     """
     try:
         df = ak.stock_financial_analysis_indicator(symbol=code, start_year="2023")
@@ -389,8 +389,13 @@ def get_financial_indicator(code: str) -> dict:
         latest = df.iloc[0]
         return {
             "roe": _safe_float(latest.get("净资产收益率(%)")),
-            "eps": _safe_float(latest.get("基本每股收益(元)")),
-            "gross_margin": _safe_float(latest.get("销售毛利率(%)")),
+            "eps": _safe_float(latest.get("加权每股收益(元)")),
+            "gross_margin": _safe_float(latest.get("主营业务利润率(%)")),
+            "net_margin": _safe_float(latest.get("销售净利率(%)")),
+            "revenue_growth": _safe_float(latest.get("主营业务收入增长率(%)")),
+            "net_profit_growth": _safe_float(latest.get("净利润增长率(%)")),
+            "debt_ratio": _safe_float(latest.get("资产负债率(%)")),
+            "current_ratio": _safe_float(latest.get("流动比率")),
         }
     except Exception:
         return {}

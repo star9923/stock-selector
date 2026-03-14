@@ -957,7 +957,7 @@
                     <div class="info-card">
                         <h3>基本面得分</h3>
                         <div class="value">${fund.score.total.toFixed(1)}</div>
-                        <div class="change">ROE ${fund.roe.toFixed(2)}% | 毛利率 ${fund.gross_margin.toFixed(2)}%</div>
+                        <div class="change">ROE ${fund.roe.toFixed(2)}% | EPS ${fund.eps.toFixed(2)}</div>
                     </div>
                     <div class="info-card">
                         <h3>成交量</h3>
@@ -995,6 +995,33 @@
                             K: ${tech.kdj_k.toFixed(1)}<br>
                             D: ${tech.kdj_d.toFixed(1)}<br>
                             J: ${tech.kdj_j.toFixed(1)}
+                        </div>
+                    </div>
+                </div>
+
+                <h3>基本面指标</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3>盈利能力</h3>
+                        <div style="font-size:14px; line-height:1.8;">
+                            ROE: ${fund.roe.toFixed(2)}%<br>
+                            EPS: ${fund.eps.toFixed(2)}<br>
+                            净利率: ${(fund.net_margin || 0).toFixed(2)}%<br>
+                            毛利率: ${fund.gross_margin.toFixed(2)}%
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <h3>成长性</h3>
+                        <div style="font-size:14px; line-height:1.8;">
+                            营收增长: ${(fund.revenue_growth || 0).toFixed(2)}%<br>
+                            净利润增长: ${(fund.net_profit_growth || 0).toFixed(2)}%
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <h3>偿债能力</h3>
+                        <div style="font-size:14px; line-height:1.8;">
+                            资产负债率: ${(fund.debt_ratio || 0).toFixed(2)}%<br>
+                            流动比率: ${(fund.current_ratio || 0).toFixed(2)}
                         </div>
                     </div>
                 </div>

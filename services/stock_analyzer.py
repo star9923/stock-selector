@@ -109,6 +109,11 @@ def analyze_stock(code: str, enable_sentiment: bool = True, hist_source: str = "
             "roe": sf(financial.get("roe", 0)),
             "eps": sf(financial.get("eps", 0)),
             "gross_margin": sf(financial.get("gross_margin", 0)),
+            "net_margin": sf(financial.get("net_margin", 0)),
+            "revenue_growth": sf(financial.get("revenue_growth", 0)),
+            "net_profit_growth": sf(financial.get("net_profit_growth", 0)),
+            "debt_ratio": sf(financial.get("debt_ratio", 0)),
+            "current_ratio": sf(financial.get("current_ratio", 0)),
         }
 
         # 5. 情绪分析
