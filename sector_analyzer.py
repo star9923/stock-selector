@@ -1,6 +1,7 @@
 """
 sector_analyzer.py - 板块分析模块
 """
+import akshare_config  # 必须在 akshare 之前导入
 import pandas as pd
 from typing import Dict, List
 from sentiment import get_board_sentiment, get_stock_board_mapping, retry_on_failure
@@ -46,8 +47,10 @@ def analyze_sector(sector_name: str) -> dict:
     }
 
     try:
-        # 1. 获取板块成分股
-        stocks_df = get_sector_stocks(sector_name)
+        # 1. 获取板块成分股（使用备用方案）
+        from sector_data_fallback import get_sector_stocks_with_fallback
+        stocks_df = get_sector_stocks_with_fallback(sector_name)
+
         if stocks_df.empty:
             result["error"] = "无法获取板块成分股数据"
             return result
@@ -66,7 +69,8 @@ def analyze_sector(sector_name: str) -> dict:
         }
 
         # 3. 获取板块情绪
-        board_sentiment = get_board_sentiment()
+        from sector_data_fallback import get_board_sentiment_with_fallback
+        board_sentiment = get_board_sentiment_with_fallback()
         if not board_sentiment.empty:
             sector_row = board_sentiment[board_sentiment["board_name"] == sector_name]
             if not sector_row.empty:
@@ -96,19 +100,22 @@ def analyze_sector(sector_name: str) -> dict:
 
 def get_all_sectors() -> List[Dict]:
     """
-    获取所有板块列表
+    获取所有板块列表（多源）
     :return: 板块列表
     """
     try:
-        df = ak.stock_board_industry_name_em()
+        # 优先使用多源获取
+        from board_data_source import get_board_list_multi_source
+        df = get_board_list_multi_source()
+
         if df.empty:
             return []
 
         sectors = []
         for _, row in df.iterrows():
             sectors.append({
-                "name": row["板块名称"],
-                "code": row.get("板块代码", ""),
+                "name": row["board_name"],
+                "code": row.get("board_code", ""),
             })
         return sectors
     except Exception as e:
@@ -123,9 +130,16 @@ def get_hot_sectors(top_n: int = 10) -> pd.DataFrame:
     :return: 热门板块DataFrame
     """
     try:
-        board_sentiment = get_board_sentiment()
+        # 使用带备用方案的获取方法
+        from sector_data_fallback import get_board_sentiment_with_fallback
+        board_sentiment = get_board_sentiment_with_fallback()
+
         if board_sentiment.empty:
             return pd.DataFrame()
+
+        # 确保有 total_count 列
+        if 'total_count' not in board_sentiment.columns:
+            board_sentiment['total_count'] = board_sentiment['up_count'] + board_sentiment['down_count']
 
         # 按情绪得分排序
         hot_sectors = board_sentiment.nlargest(top_n, "sentiment_score")

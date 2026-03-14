@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-03-14T18:22:40.575937",
+  "data": [
+    {
+      "board_name": "半导体",
+      "board_pct": 2.5,
+      "sentiment_score": 65.0,
+      "up_count": 30,
+      "down_count": 10,
+      "total_count": 40
+    },
+    {
+      "board_name": "新能源汽车",
+      "board_pct": 1.8,
+      "sentiment_score": 58.0,
+      "up_count": 25,
+      "down_count": 15,
+      "total_count": 40
+    },
+    {
+      "board_name": "人工智能",
+      "board_pct": 1.5,
+      "sentiment_score": 55.0,
+      "up_count": 20,
+      "down_count": 12,
+      "total_count": 32
+    },
+    {
+      "board_name": "白酒",
+      "board_pct": 1.2,
+      "sentiment_score": 52.0,
+      "up_count": 15,
+      "down_count": 10,
+      "total_count": 25
+    },
+    {
+      "board_name": "医药",
+      "board_pct": 0.8,
+      "sentiment_score": 48.0,
+      "up_count": 30,
+      "down_count": 25,
+      "total_count": 55
+    }
+  ]
+}

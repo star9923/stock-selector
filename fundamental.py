@@ -120,6 +120,7 @@ def score_fundamental(realtime: dict, financial: dict) -> dict:
 def filter_basic(df_realtime: pd.DataFrame) -> pd.DataFrame:
     """
     基础过滤：去掉 ST、退市风险、市值过小、异常股票
+    注意：当数据源缺少某些字段（值全为0）时，跳过对应的过滤条件
     """
     if df_realtime.empty:
         return df_realtime
@@ -130,11 +131,11 @@ def filter_basic(df_realtime: pd.DataFrame) -> pd.DataFrame:
             ~df_realtime["name"].str.contains("ST|退", na=False, regex=True)
         ]
 
-    # 流通市值 > 20亿
+    # 流通市值 > 20亿（仅当数据有效时过滤）
     if "float_cap" in df_realtime.columns:
-        df_realtime = df_realtime[
-            pd.to_numeric(df_realtime["float_cap"], errors="coerce").fillna(0) >= 2e9
-        ]
+        float_cap = pd.to_numeric(df_realtime["float_cap"], errors="coerce").fillna(0)
+        if float_cap.sum() > 0:  # 数据有效才过滤
+            df_realtime = df_realtime[float_cap >= 2e9]
 
     # 价格 > 2 元（去仙股）
     if "price" in df_realtime.columns:
@@ -142,16 +143,17 @@ def filter_basic(df_realtime: pd.DataFrame) -> pd.DataFrame:
             pd.to_numeric(df_realtime["price"], errors="coerce").fillna(0) >= 2.0
         ]
 
-    # 去掉涨停/跌停（避免追高杀跌）
+    # 去掉涨停/跌停（仅当涨跌幅数据有效时过滤）
     if "pct_change" in df_realtime.columns:
         pct = pd.to_numeric(df_realtime["pct_change"], errors="coerce").fillna(0)
-        df_realtime = df_realtime[(pct > -9.5) & (pct < 9.5)]
+        if pct.abs().sum() > 0:  # 数据有效才过滤
+            df_realtime = df_realtime[(pct > -9.5) & (pct < 9.5)]
 
-    # 去掉停牌股（成交量为 0）
+    # 去掉停牌股（仅当成交量数据有效时过滤）
     if "volume" in df_realtime.columns:
-        df_realtime = df_realtime[
-            pd.to_numeric(df_realtime["volume"], errors="coerce").fillna(0) > 0
-        ]
+        volume = pd.to_numeric(df_realtime["volume"], errors="coerce").fillna(0)
+        if volume.sum() > 0:  # 数据有效才过滤
+            df_realtime = df_realtime[volume > 0]
 
     return df_realtime.reset_index(drop=True)
 

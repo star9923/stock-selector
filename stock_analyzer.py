@@ -32,8 +32,9 @@ def analyze_stock(code: str, enable_sentiment: bool = True) -> dict:
     }
 
     try:
-        # 1. 获取历史数据
-        hist = get_daily_history(code, days=120)
+        # 1. 获取历史数据（使用备用方案）
+        from stock_data_fallback import get_stock_history_with_fallback
+        hist = get_stock_history_with_fallback(code, days=120)
         if hist.empty or len(hist) < 60:
             result["error"] = "历史数据不足"
             return result

@@ -14,6 +14,7 @@ from data_fetcher import _STOCK_MAPPING
 import pandas as pd
 from datetime import datetime
 import os
+import json
 
 app = Flask(__name__)
 CORS(app)
@@ -38,6 +39,7 @@ def select_stocks():
     sentiment_weight = params.get("sentiment_weight", 0.2)
     max_workers = min(int(params.get("max_workers", 8)), 16)
     enable_sentiment = params.get("enable_sentiment", True)
+    quote_source = params.get("quote_source", "auto")
 
     try:
         df = run_selection(
@@ -48,6 +50,7 @@ def select_stocks():
             min_score=min_score,
             max_workers=max_workers,
             enable_sentiment=enable_sentiment,
+            quote_source=quote_source,
         )
 
         if df.empty:
@@ -266,6 +269,154 @@ def delete_export(filename):
             return jsonify({"success": False, "message": "文件不存在"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+# ========== 缓存管理 API ==========
+
+CACHE_DIR = os.path.join(os.path.dirname(__file__), '.cache')
+SETTINGS_FILE = os.path.join(os.path.dirname(__file__), '.cache', 'settings.json')
+
+
+def load_settings() -> dict:
+    """加载系统设置"""
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
+    return {"data_source": "ths"}  # 默认使用同花顺
+
+
+def save_settings(settings: dict):
+    """保存系统设置"""
+    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(settings, f, ensure_ascii=False, indent=2)
+
+
+@app.route("/api/settings/data-source", methods=["GET"])
+def get_data_source():
+    """获取数据源设置"""
+    try:
+        settings = load_settings()
+        return jsonify({
+            "success": True,
+            "data": {"source": settings.get("data_source", "ths")}
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/settings/data-source", methods=["POST"])
+def set_data_source():
+    """设置数据源"""
+    try:
+        source = request.json.get("source", "ths")
+        if source not in ["ths", "em"]:
+            return jsonify({"success": False, "message": "无效的数据源"})
+
+        settings = load_settings()
+        settings["data_source"] = source
+        save_settings(settings)
+
+        source_name = "同花顺" if source == "ths" else "东方财富"
+        return jsonify({
+            "success": True,
+            "message": f"数据源已设置为: {source_name}"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/api/cache/info", methods=["GET"])
+def cache_info():
+    """获取缓存信息"""
+    try:
+        total_size = 0
+        total_files = 0
+        last_update = None
+
+        for root, dirs, files in os.walk(CACHE_DIR):
+            for f in files:
+                filepath = os.path.join(root, f)
+                size = os.path.getsize(filepath)
+                mtime = os.path.getmtime(filepath)
+                total_size += size
+                total_files += 1
+                if last_update is None or mtime > last_update:
+                    last_update = mtime
+
+        # 格式化大小
+        if total_size < 1024:
+            size_str = f"{total_size} B"
+        elif total_size < 1024 * 1024:
+            size_str = f"{total_size / 1024:.1f} KB"
+        else:
+            size_str = f"{total_size / (1024 * 1024):.2f} MB"
+
+        last_update_str = ""
+        if last_update:
+            last_update_str = datetime.fromtimestamp(last_update).strftime("%Y-%m-%d %H:%M:%S")
+
+        return jsonify({
+            "success": True,
+            "data": {
+                "total_size": size_str,
+                "total_files": total_files,
+                "last_update": last_update_str,
+            }
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@app.route("/api/cache/clear", methods=["POST"])
+def clear_cache():
+    """清理缓存"""
+    try:
+        cache_type = request.args.get("type", "all")
+        removed = 0
+
+        if cache_type in ("all", "board"):
+            # 清理板块情绪缓存
+            for name in ("get_board_sentiment.json", "board_sentiment_fallback.json"):
+                path = os.path.join(CACHE_DIR, name)
+                if os.path.exists(path):
+                    os.remove(path)
+                    removed += 1
+
+        if cache_type in ("all", "sector"):
+            # 清理板块成分股缓存
+            sector_dir = os.path.join(CACHE_DIR, "sector_stocks")
+            if os.path.isdir(sector_dir):
+                for f in os.listdir(sector_dir):
+                    os.remove(os.path.join(sector_dir, f))
+                    removed += 1
+
+        if cache_type in ("all", "stock"):
+            # 清理个股历史数据缓存
+            stock_dir = os.path.join(CACHE_DIR, "stock_history")
+            if os.path.isdir(stock_dir):
+                for f in os.listdir(stock_dir):
+                    os.remove(os.path.join(stock_dir, f))
+                    removed += 1
+
+        if cache_type == "all":
+            # 清理其他缓存
+            for f in os.listdir(CACHE_DIR):
+                path = os.path.join(CACHE_DIR, f)
+                if os.path.isfile(path):
+                    os.remove(path)
+                    removed += 1
+
+        labels = {"all": "所有缓存", "board": "板块缓存", "sector": "成分股缓存", "stock": "个股缓存"}
+        return jsonify({
+            "success": True,
+            "message": f"已清理{labels.get(cache_type, '缓存')}，共删除 {removed} 个文件"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 
 if __name__ == "__main__":

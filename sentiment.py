@@ -1,31 +1,16 @@
 """
 sentiment.py - 市场情绪与板块热度分析模块
 """
-import os
-import warnings
-
-# 必须在导入 requests/akshare 之前设置
-os.environ['NO_PROXY'] = '*'
-os.environ['no_proxy'] = '*'
-# 清除代理设置
-for key in ['http_proxy', 'https_proxy', 'HTTP_PROXY', 'HTTPS_PROXY']:
-    os.environ.pop(key, None)
-
+import akshare_config  # 必须在 akshare 之前导入
 import akshare as ak
 import pandas as pd
 from typing import Dict, List
 import time
 from functools import wraps
 import json
+import os
 from datetime import datetime, timedelta
 from sector_fallback import update_sector_mapping_with_fallback
-
-# 忽略 SSL 警告
-warnings.filterwarnings('ignore', category=Warning)
-
-# 配置 urllib3
-import urllib3
-urllib3.disable_warnings()
 
 # 缓存目录
 CACHE_DIR = os.path.join(os.path.dirname(__file__), '.cache')
@@ -119,32 +104,8 @@ def get_hot_stocks() -> pd.DataFrame:
 @retry_on_failure(max_retries=3, delay=3, backoff=2)
 def get_board_sentiment() -> pd.DataFrame:
     """获取行业板块实时情绪（涨跌幅、领涨股数量）"""
-    # 增加超时时间以应对慢速网络
-    import socket
-    original_timeout = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(30)
-
-    try:
-        df = ak.stock_board_industry_spot_em()
-        if df.empty:
-            return pd.DataFrame()
-
-        df = df.rename(columns={
-            "板块名称": "board_name",
-            "涨跌幅": "board_pct",
-            "总市值": "board_cap",
-            "换手率": "board_turnover",
-            "上涨家数": "up_count",
-            "下跌家数": "down_count",
-        })
-        # 计算板块情绪得分
-        df["sentiment_score"] = (
-            df["board_pct"] * 2 +  # 涨跌幅权重
-            (df["up_count"] / (df["up_count"] + df["down_count"] + 1)) * 30  # 上涨比例
-        )
-        return df[["board_name", "board_pct", "sentiment_score", "up_count", "down_count"]]
-    finally:
-        socket.setdefaulttimeout(original_timeout)
+    from board_data_source import get_board_sentiment_multi_source
+    return get_board_sentiment_multi_source()
 
 
 @retry_on_failure(max_retries=2, delay=1, backoff=1.5)

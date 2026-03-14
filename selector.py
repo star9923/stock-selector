@@ -8,6 +8,9 @@ from data_fetcher import (
     get_stock_list,
     get_daily_history,
     get_realtime_quotes,
+    get_realtime_quotes_from_sina,
+    get_realtime_quotes_from_em,
+    get_realtime_quotes_from_xueqiu,
     get_financial_indicator,
 )
 from indicators import add_indicators, score_technical
@@ -75,6 +78,7 @@ def run_selection(
     min_score: float = 40.0,
     max_workers: int = 8,
     enable_sentiment: bool = True,
+    quote_source: str = "auto",
 ) -> pd.DataFrame:
     """
     执行智能选股（多线程并发版 + 情绪分析）
@@ -85,6 +89,7 @@ def run_selection(
     :param min_score: 最低综合得分阈值
     :param max_workers: 并发线程数（建议 4~16，过高易触发限流）
     :param enable_sentiment: 是否启用情绪分析（较慢）
+    :param quote_source: 数据源选择 (auto/sina/em/xueqiu)
     :return: 选股结果 DataFrame
     """
     print("📋 获取股票列表...")
@@ -92,7 +97,24 @@ def run_selection(
 
     print("📡 获取实时行情...")
     all_codes = stock_list["code"].tolist()
-    df_realtime = get_realtime_quotes(all_codes, max_workers=max_workers)
+
+    # 根据用户选择的数据源获取行情
+    source_names = {"auto": "自动选择", "sina": "新浪财经", "em": "东方财富", "xueqiu": "雪球"}
+    print(f"   数据源: {source_names.get(quote_source, quote_source)}")
+
+    if quote_source == "sina":
+        df_realtime = get_realtime_quotes_from_sina()
+        if not df_realtime.empty and all_codes:
+            df_realtime = df_realtime[df_realtime['code'].isin(all_codes)]
+    elif quote_source == "em":
+        df_realtime = get_realtime_quotes_from_em(all_codes, max_workers=max_workers)
+    elif quote_source == "xueqiu":
+        df_realtime = get_realtime_quotes_from_xueqiu()
+        if not df_realtime.empty and all_codes:
+            df_realtime = df_realtime[df_realtime['code'].isin(all_codes)]
+    else:
+        # auto: 使用多源降级
+        df_realtime = get_realtime_quotes(all_codes, max_workers=max_workers)
 
     print(f"   获取到 {len(df_realtime)} 条行情数据")
     if not df_realtime.empty:
