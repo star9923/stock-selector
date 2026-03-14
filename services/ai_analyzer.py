@@ -4,7 +4,10 @@ ai_analyzer.py - AI 智能分析模块
 """
 import os
 import json
+import data.akshare_config
+import akshare as ak
 from anthropic import Anthropic
+from datetime import datetime, timedelta
 
 
 AI_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'ai_config.json')
@@ -43,6 +46,43 @@ def get_client() -> Anthropic:
     )
 
 
+def get_stock_news(code: str, max_count: int = 20) -> list:
+    """
+    获取个股近期新闻
+    :param code: 股票代码
+    :param max_count: 最大新闻条数
+    :return: 新闻列表 [{"title": ..., "time": ..., "content": ...}]
+    """
+    try:
+        df = ak.stock_news_em(symbol=code)
+        if df.empty:
+            return []
+
+        # 只取近1个月的新闻
+        one_month_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        if '发布时间' in df.columns:
+            df = df[df['发布时间'] >= one_month_ago]
+
+        news_list = []
+        for _, row in df.head(max_count).iterrows():
+            content = str(row.get('新闻内容', ''))
+            # 截取前200字，避免 prompt 过长
+            if len(content) > 200:
+                content = content[:200] + '...'
+            news_list.append({
+                "title": str(row.get('新闻标题', '')),
+                "time": str(row.get('发布时间', '')),
+                "content": content,
+                "source": str(row.get('文章来源', '')),
+            })
+
+        print(f"   ✅ 获取到 {len(news_list)} 条近期新闻")
+        return news_list
+    except Exception as e:
+        print(f"   ⚠️  获取新闻失败: {str(e)[:50]}")
+        return []
+
+
 def analyze_with_ai(stock_data: dict) -> str:
     """
     使用 Claude 对股票技术指标进行智能分析
@@ -68,7 +108,16 @@ def analyze_with_ai(stock_data: dict) -> str:
     if not signals_text:
         signals_text = "- 暂无明显信号\n"
 
-    prompt = f"""请对以下股票的技术指标进行专业分析，给出买入/持有/卖出建议。
+    # 获取近期新闻
+    news_list = get_stock_news(code)
+    news_text = ""
+    if news_list:
+        for n in news_list:
+            news_text += f"- [{n['time']}] {n['title']}\n  {n['content']}\n"
+    else:
+        news_text = "- 暂无近期新闻\n"
+
+    prompt = f"""请对以下股票进行综合深度分析，结合技术指标和近期新闻，给出买入/持有/卖出建议。
 
 ## 股票信息
 - 代码: {code}
@@ -100,17 +149,22 @@ def analyze_with_ai(stock_data: dict) -> str:
 ## 交易信号
 {signals_text}
 
+## 近1个月新闻动态
+{news_text}
+
 请从以下几个维度进行分析：
 1. **趋势分析**：根据均线系统判断当前趋势
 2. **动量分析**：根据 MACD、RSI、KDJ 判断动量强弱
 3. **支撑压力**：根据布林带和关键价位判断支撑压力
 4. **量价关系**：分析成交量与价格的配合情况
-5. **综合建议**：给出明确的操作建议（买入/持有/卖出）和理由
+5. **新闻面分析**：结合近期新闻评估对股价的潜在影响（利好/利空/中性）
+6. **综合建议**：综合技术面和新闻面，给出明确的操作建议（买入/持有/卖出）和理由
 
 注意：
 - 请用中文回答
 - 分析要专业但易懂
 - 给出具体的支撑位和压力位
+- 新闻面分析要客观，区分短期影响和长期影响
 - 风险提示不可少
 """
 
