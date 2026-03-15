@@ -46,7 +46,7 @@ def get_client() -> Anthropic:
     )
 
 
-def get_stock_news(code: str, max_count: int = 20) -> list:
+def get_stock_news(code: str, max_count: int = 30) -> list:
     """
     获取个股近期新闻
     :param code: 股票代码
@@ -58,10 +58,10 @@ def get_stock_news(code: str, max_count: int = 20) -> list:
         if df.empty:
             return []
 
-        # 只取近1个月的新闻
-        one_month_ago = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+        # 只取近3个月的新闻
+        three_months_ago = (datetime.now() - timedelta(days=90)).strftime("%Y-%m-%d")
         if '发布时间' in df.columns:
-            df = df[df['发布时间'] >= one_month_ago]
+            df = df[df['发布时间'] >= three_months_ago]
 
         news_list = []
         for _, row in df.head(max_count).iterrows():
@@ -117,7 +117,20 @@ def analyze_with_ai(stock_data: dict) -> str:
     else:
         news_text = "- 暂无近期新闻\n"
 
-    prompt = f"""请对以下股票进行综合深度分析，结合技术指标和近期新闻，给出买入/持有/卖出建议。
+    # 构建股吧信息文本
+    guba_text = ""
+    guba_info = sentiment.get("guba_info", {})
+    if guba_info:
+        guba_text = f"""## 股吧热度
+- 关注指数: {guba_info.get('attention_index', 0):.1f}/100
+- 综合得分: {guba_info.get('comprehensive_score', 0):.1f}/100
+- 机构参与度: {guba_info.get('institution_participation', 0):.1f}%
+- 当前排名: 第 {guba_info.get('current_rank', 0)} 名
+- 排名变化: {'↑' if guba_info.get('rank_change', 0) > 0 else '↓'} {abs(guba_info.get('rank_change', 0))} 位
+
+"""
+
+    prompt = f"""请对以下股票进行综合深度分析，结合技术指标、近期新闻和股吧热度，给出买入/持有/卖出建议。
 
 ## 股票信息
 - 代码: {code}
@@ -143,13 +156,16 @@ def analyze_with_ai(stock_data: dict) -> str:
 - 毛利率: {fund.get('gross_margin', 0)}%
 
 ## 市场情绪
-- 情绪得分: {sentiment.get('score', 0)}/60
+- 情绪得分: {sentiment.get('score', 0)}/80
+- 热度得分: {sentiment.get('hot_score', 0)}/30
+- 板块得分: {sentiment.get('board_score', 0)}/30
+- 股吧得分: {sentiment.get('guba_score', 0)}/20
 - 所属板块: {sentiment.get('board_name', '未知')}
 
-## 交易信号
+{guba_text}## 交易信号
 {signals_text}
 
-## 近1个月新闻动态
+## 近3个月新闻动态
 {news_text}
 
 请从以下几个维度进行分析：
@@ -158,13 +174,15 @@ def analyze_with_ai(stock_data: dict) -> str:
 3. **支撑压力**：根据布林带和关键价位判断支撑压力
 4. **量价关系**：分析成交量与价格的配合情况
 5. **新闻面分析**：结合近期新闻评估对股价的潜在影响（利好/利空/中性）
-6. **综合建议**：综合技术面和新闻面，给出明确的操作建议（买入/持有/卖出）和理由
+6. **股吧热度分析**：根据关注指数、综合得分、机构参与度等评估市场关注度和资金流向
+7. **综合建议**：综合技术面、新闻面和市场情绪，给出明确的操作建议（买入/持有/卖出）和理由
 
 注意：
 - 请用中文回答
 - 分析要专业但易懂
 - 给出具体的支撑位和压力位
 - 新闻面分析要客观，区分短期影响和长期影响
+- 股吧热度可以反映散户情绪和市场关注度
 - 风险提示不可少
 """
 

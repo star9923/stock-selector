@@ -140,19 +140,48 @@ def get_stock_board_mapping() -> Dict[str, str]:
     return mapping
 
 
+@retry_on_failure(max_retries=3, delay=2, backoff=2)
+def get_stock_guba_data() -> pd.DataFrame:
+    """
+    获取股吧数据（东方财富）
+    包含：机构参与度、综合得分、关注指数、主力成本等
+    """
+    df = ak.stock_comment_em()
+    if df.empty:
+        return pd.DataFrame()
+
+    # 重命名列
+    df = df.rename(columns={
+        "代码": "code",
+        "名称": "name",
+        "机构参与度": "institution_participation",
+        "综合得分": "comprehensive_score",
+        "关注指数": "attention_index",
+        "主力成本": "main_cost",
+        "上升": "rank_change",
+        "目前排名": "current_rank",
+    })
+
+    return df[["code", "name", "institution_participation", "comprehensive_score",
+               "attention_index", "main_cost", "rank_change", "current_rank"]]
+
+
 def score_sentiment(code: str, hot_stocks: pd.DataFrame, board_sentiment: pd.DataFrame,
-                    stock_board_map: Dict[str, str]) -> dict:
+                    stock_board_map: Dict[str, str], guba_data: pd.DataFrame = None) -> dict:
     """
     计算单只股票的市场情绪得分
     :param code: 股票代码
     :param hot_stocks: 热门股票 DataFrame
     :param board_sentiment: 板块情绪 DataFrame
     :param stock_board_map: 股票->板块映射
+    :param guba_data: 股吧数据 DataFrame
     :return: 情绪得分字典
     """
     hot_score = 0
     board_score = 0
+    guba_score = 0
     board_name = "未知"
+    guba_info = {}
 
     # 1. 热度得分（0-30分）
     if not hot_stocks.empty and code in hot_stocks["code"].values:
@@ -191,20 +220,67 @@ def score_sentiment(code: str, hot_stocks: pd.DataFrame, board_sentiment: pd.Dat
                 elif sentiment > 10:
                     board_score += 5
 
-    total = hot_score + board_score
+    # 3. 股吧热度得分（0-20分）
+    if guba_data is not None and not guba_data.empty and code in guba_data["code"].values:
+        guba_row = guba_data[guba_data["code"] == code].iloc[0]
 
-    return {
-        "total": min(max(total, 0), 60),  # 限制在 0-60 分
+        # 提取股吧信息
+        guba_info = {
+            "attention_index": float(guba_row.get("attention_index", 0)),
+            "comprehensive_score": float(guba_row.get("comprehensive_score", 0)),
+            "institution_participation": float(guba_row.get("institution_participation", 0)),
+            "rank_change": int(guba_row.get("rank_change", 0)),
+            "current_rank": int(guba_row.get("current_rank", 0)),
+        }
+
+        # 关注指数加分（0-10分）
+        attention = guba_info["attention_index"]
+        if attention >= 90:
+            guba_score += 10
+        elif attention >= 80:
+            guba_score += 8
+        elif attention >= 70:
+            guba_score += 6
+        elif attention >= 60:
+            guba_score += 4
+
+        # 综合得分加分（0-5分）
+        comp_score = guba_info["comprehensive_score"]
+        if comp_score >= 70:
+            guba_score += 5
+        elif comp_score >= 60:
+            guba_score += 3
+
+        # 排名上升加分（0-5分）
+        rank_change = guba_info["rank_change"]
+        if rank_change > 1000:
+            guba_score += 5
+        elif rank_change > 500:
+            guba_score += 3
+        elif rank_change > 0:
+            guba_score += 1
+
+    total = hot_score + board_score + guba_score
+
+    result = {
+        "total": min(max(total, 0), 80),  # 限制在 0-80 分（增加了股吧维度）
         "hot_score": hot_score,
         "board_score": board_score,
+        "guba_score": guba_score,
         "board_name": board_name,
     }
+
+    # 如果有股吧信息，添加到结果中
+    if guba_info:
+        result["guba_info"] = guba_info
+
+    return result
 
 
 def get_sentiment_data() -> tuple:
     """
     获取所有情绪数据（缓存用）
-    :return: (hot_stocks, board_sentiment, stock_board_map)
+    :return: (hot_stocks, board_sentiment, stock_board_map, guba_data)
     """
     print("📰 获取市场情绪数据...")
     hot_stocks = get_hot_stocks()
@@ -228,4 +304,12 @@ def get_sentiment_data() -> tuple:
     else:
         print(f"   映射完成: {len(stock_board_map)} 只股票（含备用数据）")
 
-    return hot_stocks, board_sentiment, stock_board_map
+    # 获取股吧数据
+    print("💬 获取股吧数据...")
+    guba_data = get_stock_guba_data()
+    if not guba_data.empty:
+        print(f"   股吧数据: {len(guba_data)} 只股票")
+    else:
+        print("   ⚠️  股吧数据获取失败")
+
+    return hot_stocks, board_sentiment, stock_board_map, guba_data

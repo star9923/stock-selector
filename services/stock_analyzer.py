@@ -119,19 +119,24 @@ def analyze_stock(code: str, enable_sentiment: bool = True, hist_source: str = "
         # 5. 情绪分析
         if enable_sentiment:
             try:
-                hot_stocks, board_sentiment, stock_board_map = get_sentiment_data()
-                sentiment = score_sentiment(code, hot_stocks, board_sentiment, stock_board_map)
+                hot_stocks, board_sentiment, stock_board_map, guba_data = get_sentiment_data()
+                sentiment = score_sentiment(code, hot_stocks, board_sentiment, stock_board_map, guba_data)
                 result["sentiment"] = {
                     "score": sentiment["total"],
                     "hot_score": sentiment["hot_score"],
                     "board_score": sentiment["board_score"],
+                    "guba_score": sentiment.get("guba_score", 0),
                     "board_name": sentiment["board_name"],
                 }
+                # 如果有股吧详细信息，添加到结果中
+                if "guba_info" in sentiment:
+                    result["sentiment"]["guba_info"] = sentiment["guba_info"]
             except Exception as e:
                 result["sentiment"] = {
                     "score": 0,
                     "hot_score": 0,
                     "board_score": 0,
+                    "guba_score": 0,
                     "board_name": "未知",
                     "error": str(e),
                 }
@@ -159,7 +164,7 @@ def analyze_stock(code: str, enable_sentiment: bool = True, hist_source: str = "
 
         # 8. 投资建议
         sentiment_score = result["sentiment"].get("score", 0) if enable_sentiment else 0
-        total_score = tech_score["total"] * 0.5 + fund_score["total"] * 0.3 + sentiment_score * 0.2
+        total_score = tech_score["total"] * 0.4 + fund_score["total"] * 0.3 + sentiment_score * 0.3
         result["recommendation"] = generate_recommendation(total_score, signals)
 
         result["success"] = True
