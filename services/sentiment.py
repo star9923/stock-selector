@@ -58,8 +58,8 @@ def retry_on_failure(max_retries=3, delay=2, backoff=2):
         def wrapper(*args, **kwargs):
             cache_name = func.__name__
 
-            # 先尝试从缓存加载
-            cached = load_cache(cache_name, max_age_hours=6)
+            # 先尝试从缓存加载（缩短缓存时间到1小时，确保数据更新）
+            cached = load_cache(cache_name, max_age_hours=1)
 
             retries = 0
             current_delay = delay

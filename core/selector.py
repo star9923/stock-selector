@@ -136,9 +136,9 @@ def run_selection(
     print(f"   过滤后剩余 {len(filtered_codes)} 只股票")
 
     # 获取情绪数据
-    hot_stocks, board_sentiment, stock_board_map = pd.DataFrame(), pd.DataFrame(), {}
+    hot_stocks, board_sentiment, stock_board_map, guba_data = pd.DataFrame(), pd.DataFrame(), {}, pd.DataFrame()
     if enable_sentiment:
-        hot_stocks, board_sentiment, stock_board_map = get_sentiment_data()
+        hot_stocks, board_sentiment, stock_board_map, guba_data = get_sentiment_data()
     else:
         print("⚠️  情绪分析已禁用")
 

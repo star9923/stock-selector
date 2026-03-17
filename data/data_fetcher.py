@@ -383,7 +383,9 @@ def get_financial_indicator(code: str) -> dict:
     :return: dict，含 roe/eps/gross_margin/revenue_growth 等
     """
     try:
-        df = ak.stock_financial_analysis_indicator(symbol=code, start_year="2023")
+        # 使用当前年份和前一年，确保获取最新财务数据
+        current_year = datetime.now().year
+        df = ak.stock_financial_analysis_indicator(symbol=code, start_year=str(current_year - 1))
         if df.empty:
             return {}
         latest = df.iloc[0]
