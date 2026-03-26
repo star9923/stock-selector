@@ -4,64 +4,119 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>A股智能选股系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.1.1/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f7fa;
             min-height: 100vh;
-            padding: 20px;
+            overflow-x: hidden;
         }
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+        .sidebar {
+            width: 260px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            position: fixed;
+            height: 100vh;
+            left: 0;
+            top: 0;
+            z-index: 100;
+        }
+        .sidebar-header {
+            padding: 30px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .sidebar-header h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+        }
+        .nav-item {
+            padding: 14px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: rgba(255,255,255,0.8);
+            font-size: 15px;
+            border-left: 3px solid transparent;
+        }
+        .nav-item:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+        .nav-item.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border-left-color: white;
+            font-weight: 600;
+        }
+        .nav-item .icon {
+            font-size: 18px;
+            width: 24px;
+            text-align: center;
+        }
+        .main-content {
+            flex: 1;
+            margin-left: 260px;
+            background: #f5f7fa;
         }
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .header h1 { font-size: 32px; margin-bottom: 8px; }
-        .header p { opacity: 0.9; font-size: 14px; }
-        .tabs {
-            display: flex;
-            background: #f8f9fa;
-            border-bottom: 2px solid #dee2e6;
-        }
-        .tab {
-            flex: 1;
-            padding: 16px;
-            text-align: center;
-            cursor: pointer;
-            font-weight: 600;
-            color: #6c757d;
-            transition: all 0.3s;
-            border-bottom: 3px solid transparent;
-        }
-        .tab:hover { background: #e9ecef; }
-        .tab.active {
-            color: #667eea;
-            border-bottom-color: #667eea;
             background: white;
+            padding: 25px 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-bottom: 1px solid #e9ecef;
+        }
+        .header h2 {
+            font-size: 24px;
+            color: #212529;
+            margin-bottom: 5px;
+        }
+        .header p {
+            color: #6c757d;
+            font-size: 14px;
         }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .content-wrapper {
+            padding: 30px 40px;
+        }
         .search-box {
-            padding: 20px 30px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
+            padding: 25px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
         }
         .search-input {
             width: 100%;
             padding: 12px 16px;
-            border: 2px solid #dee2e6;
+            border: 2px solid #e9ecef;
             border-radius: 8px;
-            font-size: 16px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
         }
         .search-results {
             max-height: 200px;
@@ -79,7 +134,10 @@
         }
         .search-item:hover { background: #f8f9fa; }
         .analysis-container {
+            background: white;
             padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
         .info-grid {
             display: grid;
@@ -140,9 +198,11 @@
             line-height: 1.6;
         }
         .controls {
-            padding: 30px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #e9ecef;
+            padding: 25px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
         }
         .control-row {
             display: flex;
@@ -164,7 +224,7 @@
         .control-group input {
             width: 100%;
             padding: 10px 12px;
-            border: 2px solid #dee2e6;
+            border: 2px solid #e9ecef;
             border-radius: 8px;
             font-size: 14px;
             transition: border-color 0.2s;
@@ -196,16 +256,22 @@
             transform: none;
         }
         .status {
-            padding: 20px 30px;
+            padding: 15px 25px;
             background: #fff3cd;
-            border-bottom: 1px solid #ffeaa7;
+            border-left: 4px solid #ffc107;
+            border-radius: 8px;
+            margin-bottom: 20px;
             display: none;
         }
         .status.show { display: block; }
-        .status.success { background: #d4edda; border-color: #c3e6cb; }
-        .status.error { background: #f8d7da; border-color: #f5c6cb; }
+        .status.success { background: #d4edda; border-color: #28a745; }
+        .status.error { background: #f8d7da; border-color: #dc3545; }
+        .status.info { background: #d1ecf1; border-color: #17a2b8; }
         .results {
+            background: white;
             padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
         }
         .results-header {
             display: flex;
@@ -277,66 +343,514 @@
             padding: 60px;
             color: #6c757d;
         }
+        .sector-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .sector-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        }
+        .sector-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .sector-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: #212529;
+        }
+        .sector-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #212529;
+        }
+        .settings-section {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        .settings-section h3 {
+            margin-bottom: 20px;
+            color: #212529;
+            font-size: 18px;
+        }
+        .settings-section h4 {
+            margin-bottom: 15px;
+            color: #495057;
+            font-size: 16px;
+        }
+        .settings-section ul {
+            line-height: 2;
+            color: #6c757d;
+            padding-left: 20px;
+        }
+
+        /* AI 分析 Markdown 样式 */
+        .ai-analysis-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            line-height: 1.8;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .ai-analysis-content h1 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin: 20px 0 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .ai-analysis-content h2 {
+            font-size: 20px;
+            color: #495057;
+            margin: 18px 0 12px;
+            padding-left: 10px;
+            border-left: 3px solid #667eea;
+        }
+
+        .ai-analysis-content h3 {
+            font-size: 17px;
+            color: #667eea;
+            margin: 15px 0 10px;
+        }
+
+        .ai-analysis-content h4 {
+            font-size: 15px;
+            color: #764ba2;
+            margin: 12px 0 8px;
+        }
+
+        .ai-analysis-content p {
+            margin: 10px 0;
+            line-height: 1.8;
+        }
+
+        .ai-analysis-content ul, .ai-analysis-content ol {
+            margin: 10px 0;
+            padding-left: 25px;
+        }
+
+        .ai-analysis-content li {
+            margin: 6px 0;
+            line-height: 1.7;
+        }
+
+        .ai-analysis-content strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .ai-analysis-content code {
+            background: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e83e8c;
+        }
+
+        .ai-analysis-content blockquote {
+            border-left: 4px solid #ffc107;
+            background: #fff3cd;
+            padding: 12px 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        .ai-analysis-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        .ai-analysis-content th, .ai-analysis-content td {
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            text-align: left;
+        }
+
+        .ai-analysis-content th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .ai-export-btn {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .ai-export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(17, 153, 142, 0.3);
+        }
+
+        .ai-export-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📈 A股智能选股系统</h1>
-            <p>技术面 + 基本面综合评分</p>
-        </div>
-
-        <!-- 标签页 -->
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('select')">智能选股</div>
-            <div class="tab" onclick="switchTab('analyze')">个股分析</div>
-        </div>
-
-        <!-- 选股页面 -->
-        <div id="selectTab" class="tab-content active">
-        <div class="controls">
-            <div class="control-row">
-                <div class="control-group">
-                    <label>返回数量</label>
-                    <input type="number" id="top" value="20" min="1" max="100">
+    <div class="app-container">
+        <!-- 左侧边栏 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>📈 A股选股系统</h1>
+                <p>智能分析 · 精准选股</p>
+            </div>
+            <div class="sidebar-nav">
+                <div class="nav-item active" onclick="switchTab('select')">
+                    <span class="icon">🎯</span>
+                    <span>智能选股</span>
                 </div>
-                <div class="control-group">
-                    <label>最低得分</label>
-                    <input type="number" id="minScore" value="50" min="0" max="100" step="5">
+                <div class="nav-item" onclick="switchTab('analyze')">
+                    <span class="icon">📊</span>
+                    <span>个股分析</span>
                 </div>
-                <div class="control-group">
-                    <label>技术面权重</label>
-                    <input type="number" id="techWeight" value="0.6" min="0" max="1" step="0.1">
+                <div class="nav-item" onclick="switchTab('sector')">
+                    <span class="icon">🔥</span>
+                    <span>板块热度</span>
                 </div>
-                <div class="control-group">
-                    <label>基本面权重</label>
-                    <input type="number" id="fundWeight" value="0.4" min="0" max="1" step="0.1">
+                <div class="nav-item" onclick="switchTab('settings')">
+                    <span class="icon">⚙️</span>
+                    <span>系统设置</span>
                 </div>
-                <button class="btn btn-primary" onclick="runSelection()">开始选股</button>
             </div>
         </div>
 
-        <div class="status" id="status"></div>
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 智能选股页面 -->
+            <div id="selectTab" class="tab-content active">
+                <div class="header">
+                    <h2>智能选股</h2>
+                    <p>基于技术面、基本面和市场情绪的综合评分系统</p>
+                </div>
+                <div class="content-wrapper">
+                    <div class="controls">
+                        <div class="control-row">
+                            <div class="control-group">
+                                <label>数据源</label>
+                                <select id="quoteSource" style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; background:white; cursor:pointer;">
+                                    <option value="auto">自动选择（推荐）</option>
+                                    <option value="sina">新浪财经</option>
+                                    <option value="em">东方财富</option>
+                                    <option value="xueqiu">雪球（仅基础数据）</option>
+                                </select>
+                            </div>
+                            <div class="control-group">
+                                <label>返回数量</label>
+                                <input type="number" id="top" value="20" min="1" max="100">
+                            </div>
+                            <div class="control-group">
+                                <label>最低得分</label>
+                                <input type="number" id="minScore" value="50" min="0" max="100" step="5">
+                            </div>
+                            <div class="control-group">
+                                <label>技术面权重</label>
+                                <input type="number" id="techWeight" value="0.6" min="0" max="1" step="0.1">
+                            </div>
+                            <div class="control-group">
+                                <label>基本面权重</label>
+                                <input type="number" id="fundWeight" value="0.3" min="0" max="1" step="0.1">
+                            </div>
+                            <div class="control-group">
+                                <label>情绪面权重</label>
+                                <input type="number" id="sentimentWeight" value="0.2" min="0" max="1" step="0.1">
+                            </div>
+                            <button class="btn btn-primary" onclick="runSelection()">开始选股</button>
+                        </div>
+                    </div>
 
-        <div class="results">
-            <div class="results-header">
-                <h2>选股结果</h2>
-                <div class="timestamp" id="timestamp"></div>
-            </div>
-            <div id="tableContainer">
-                <div class="empty">点击"开始选股"运行分析</div>
-            </div>
-        </div>
-        </div>
+                    <div class="status" id="status"></div>
 
-        <!-- 个股分析页面 -->
-        <div id="analyzeTab" class="tab-content">
-            <div class="search-box">
-                <input type="text" id="searchInput" class="search-input" placeholder="输入股票代码或名称搜索..." onkeyup="searchStock()">
-                <div id="searchResults" class="search-results" style="display:none;"></div>
+                    <div class="results">
+                        <div class="results-header">
+                            <h2>选股结果</h2>
+                            <div class="timestamp" id="timestamp"></div>
+                        </div>
+                        <div id="tableContainer">
+                            <div class="empty">点击"开始选股"运行分析</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="analysisContainer" class="analysis-container">
-                <div class="empty">请搜索并选择要分析的股票</div>
+
+            <!-- 个股分析页面 -->
+            <div id="analyzeTab" class="tab-content">
+                <div class="header">
+                    <h2>个股分析</h2>
+                    <p>深度分析单只股票的技术指标和基本面数据</p>
+                </div>
+                <div class="content-wrapper">
+                    <div class="search-box">
+                        <div style="display: flex; gap: 15px; align-items: flex-end;">
+                            <div style="flex: 1;">
+                                <input type="text" id="searchInput" class="search-input" placeholder="输入股票代码或名称搜索..." onkeyup="searchStock()">
+                            </div>
+                            <div style="width: 200px;">
+                                <label style="display:block; margin-bottom:6px; font-size:14px; color:#495057; font-weight:600;">历史数据源</label>
+                                <select id="analyzeHistSource" style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; background:white; cursor:pointer;">
+                                    <option value="auto">自动选择</option>
+                                    <option value="sina">新浪财经</option>
+                                    <option value="em">东方财富</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="searchResults" class="search-results" style="display:none;"></div>
+                    </div>
+                    <div id="analysisContainer" class="analysis-container">
+                        <div class="empty">请搜索并选择要分析的股票</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 板块热度页面 -->
+            <div id="sectorTab" class="tab-content">
+                <div class="header">
+                    <h2>板块热度</h2>
+                    <p>实时追踪市场热门板块和资金流向</p>
+                </div>
+                <div class="content-wrapper">
+                    <div class="controls">
+                        <div class="control-row">
+                            <div class="control-group">
+                                <label>显示数量</label>
+                                <input type="number" id="sectorTopN" value="20" min="5" max="50" step="5">
+                            </div>
+                            <button class="btn btn-primary" onclick="loadHotSectors()">刷新数据</button>
+                        </div>
+                    </div>
+
+                    <div class="status" id="sectorStatus"></div>
+
+                    <div class="results">
+                        <div class="results-header">
+                            <h2>热门板块排行</h2>
+                            <div class="timestamp" id="sectorTimestamp"></div>
+                        </div>
+                        <div id="sectorTableContainer">
+                            <div class="empty">点击"刷新数据"加载板块热度</div>
+                        </div>
+                    </div>
+
+                    <div id="sectorDetailContainer" style="display:none;">
+                        <div class="results" style="margin-top: 20px;">
+                            <div class="results-header">
+                                <h2 id="sectorDetailTitle">板块详情</h2>
+                                <button class="btn" onclick="closeSectorDetail()" style="padding: 8px 16px; background: #6c757d; color: white;">关闭</button>
+                            </div>
+                            <div id="sectorDetailContent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统设置页面 -->
+            <div id="settingsTab" class="tab-content">
+                <div class="header">
+                    <h2>系统设置</h2>
+                    <p>管理缓存和系统配置</p>
+                </div>
+                <div class="content-wrapper">
+                    <!-- 数据源设置 -->
+                    <div class="results" style="margin-bottom: 20px;">
+                        <h3 style="margin-bottom: 20px;">数据源设置</h3>
+
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #495057;">板块数据源</h4>
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 10px;">
+                                    <input type="radio" name="dataSource" value="ths" id="sourceThs" checked style="margin-right: 10px;">
+                                    <div>
+                                        <strong>同花顺（推荐）</strong>
+                                        <div style="font-size: 13px; color: #6c757d; margin-top: 3px;">
+                                            连接稳定，非交易时间也可用，适合查看板块列表
+                                        </div>
+                                    </div>
+                                </label>
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="radio" name="dataSource" value="em" id="sourceEm" style="margin-right: 10px;">
+                                    <div>
+                                        <strong>东方财富</strong>
+                                        <div style="font-size: 13px; color: #6c757d; margin-top: 3px;">
+                                            数据完整，适合交易时间查看板块列表
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary" onclick="saveDataSource()" style="background: #28a745;">
+                                保存设置
+                            </button>
+                        </div>
+
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 15px;">
+                            <strong>⚠️ 重要说明：</strong>
+                            <div style="margin-top: 8px; line-height: 1.8;">
+                                <strong>板块热度功能</strong>需要实时涨跌幅和上涨下跌家数，这些数据<strong>仅东方财富提供</strong>。
+                                无论选择哪个数据源，板块热度功能都会尝试从东方财富获取数据。
+                            </div>
+                        </div>
+
+                        <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+                            <strong>使用建议：</strong>
+                            <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
+                                <li><strong>同花顺</strong>：适合非交易时间查看板块列表和成分股</li>
+                                <li><strong>东方财富</strong>：适合交易时间查看板块列表</li>
+                                <li><strong>板块热度</strong>：建议在交易时间使用，或依赖缓存数据</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- AI 配置 -->
+                    <div class="results" style="margin-bottom: 20px;">
+                        <h3 style="margin-bottom: 20px;">AI 分析配置</h3>
+
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display:block; margin-bottom:6px; font-weight:600; color:#495057;">API Base URL</label>
+                                <input type="text" id="aiBaseUrl" placeholder="https://api.anthropic.com"
+                                    style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; box-sizing:border-box;">
+                            </div>
+
+                            <div style="margin-bottom: 15px;">
+                                <label style="display:block; margin-bottom:6px; font-weight:600; color:#495057;">API Key</label>
+                                <div style="display:flex; gap:10px;">
+                                    <input type="password" id="aiApiKey" placeholder="sk-ant-..."
+                                        style="flex:1; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px;">
+                                    <button onclick="toggleKeyVisibility()" style="padding:10px 15px; border:2px solid #e9ecef; border-radius:8px; background:white; cursor:pointer; font-size:14px;" title="显示/隐藏">👁</button>
+                                </div>
+                                <div id="aiKeyStatus" style="margin-top:6px; font-size:13px; color:#6c757d;"></div>
+                            </div>
+
+                            <div style="display:flex; gap:15px; margin-bottom:15px;">
+                                <div style="flex:1;">
+                                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#495057;">
+                                        模型
+                                        <span style="font-weight:400; color:#6c757d; font-size:12px;">(可选择或自定义输入)</span>
+                                    </label>
+                                    <input type="text" id="aiModel" list="modelList" placeholder="输入或选择模型名称"
+                                        style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; box-sizing:border-box;">
+                                    <datalist id="modelList">
+                                        <option value="claude-sonnet-4-20250514">Claude Sonnet 4 (推荐)</option>
+                                        <option value="claude-opus-4-20250514">Claude Opus 4</option>
+                                        <option value="claude-haiku-4-20250514">Claude Haiku 4</option>
+                                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                                        <option value="gpt-4">GPT-4</option>
+                                        <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                    </datalist>
+                                </div>
+                                <div style="flex:1;">
+                                    <label style="display:block; margin-bottom:6px; font-weight:600; color:#495057;">最大 Token</label>
+                                    <input type="number" id="aiMaxTokens" value="2000" min="500" max="8000" step="500"
+                                        style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; box-sizing:border-box;">
+                                </div>
+                            </div>
+
+                            <div style="display:flex; gap:10px;">
+                                <button class="btn btn-primary" onclick="saveAiConfig()" style="background:#28a745;">保存配置</button>
+                                <button class="btn btn-primary" onclick="testAiConnection()" id="aiTestBtn" style="background:#007bff;">测试连接</button>
+                            </div>
+                            <div id="aiConfigStatus" class="status" style="margin-top:10px;"></div>
+                        </div>
+
+                        <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; border-left: 4px solid #007bff;">
+                            <strong>说明：</strong>
+                            <ul style="margin: 10px 0 0 20px; line-height: 1.8;">
+                                <li>API Key 会加密存储在本地，不会出现在代码中</li>
+                                <li>如使用第三方代理，请修改 Base URL</li>
+                                <li>模型名称支持自定义输入，可使用任何兼容的 AI 模型</li>
+                                <li>保存后点击"测试连接"验证配置是否正确</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- 缓存管理 -->
+                    <div class="results">
+                        <h3 style="margin-bottom: 20px;">缓存管理</h3>
+
+                        <div class="info-grid" style="margin-bottom: 30px;">
+                            <div class="info-card">
+                                <h3>缓存状态</h3>
+                                <div class="value" id="cacheStatus">检查中...</div>
+                                <div class="change" id="cacheSize">-</div>
+                            </div>
+                            <div class="info-card">
+                                <h3>缓存文件数</h3>
+                                <div class="value" id="cacheFileCount">-</div>
+                                <div class="change">包含所有缓存类型</div>
+                            </div>
+                            <div class="info-card">
+                                <h3>最后更新</h3>
+                                <div class="value" id="cacheLastUpdate" style="font-size: 16px;">-</div>
+                                <div class="change">板块数据缓存时间</div>
+                            </div>
+                        </div>
+
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #495057;">缓存说明</h4>
+                            <ul style="line-height: 2; color: #6c757d; padding-left: 20px;">
+                                <li>系统会自动缓存板块数据、股票数据等，以提高访问速度</li>
+                                <li>缓存有效期：板块情绪6小时，板块成分股7天</li>
+                                <li>清理缓存后，下次访问会重新从API获取数据</li>
+                                <li>如果API不可用，系统会使用示例数据</li>
+                            </ul>
+                        </div>
+
+                        <div class="control-row">
+                            <button class="btn btn-primary" onclick="refreshCacheInfo()" style="background: #17a2b8;">
+                                刷新缓存信息
+                            </button>
+                            <button class="btn btn-primary" onclick="clearCache('all')" style="background: #ffc107; color: #212529;">
+                                清理所有缓存
+                            </button>
+                            <button class="btn btn-primary" onclick="clearCache('board')" style="background: #6c757d;">
+                                仅清理板块缓存
+                            </button>
+                            <button class="btn btn-primary" onclick="clearCache('sector')" style="background: #6c757d;">
+                                仅清理成分股缓存
+                            </button>
+                            <button class="btn btn-primary" onclick="clearCache('stock')" style="background: #6c757d;">
+                                仅清理个股缓存
+                            </button>
+                        </div>
+
+                        <div class="status" id="settingsStatus" style="margin-top: 20px;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -344,15 +858,27 @@
     <script>
         // 标签页切换
         function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            // 移除所有激活状态
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
 
-            if (tab === 'select') {
-                document.querySelector('.tab:nth-child(1)').classList.add('active');
-                document.getElementById('selectTab').classList.add('active');
-            } else {
-                document.querySelector('.tab:nth-child(2)').classList.add('active');
-                document.getElementById('analyzeTab').classList.add('active');
+            // 激活对应的导航和内容
+            const tabMap = {
+                'select': { nav: 0, content: 'selectTab' },
+                'analyze': { nav: 1, content: 'analyzeTab' },
+                'sector': { nav: 2, content: 'sectorTab' },
+                'settings': { nav: 3, content: 'settingsTab' }
+            };
+
+            const selected = tabMap[tab];
+            if (selected) {
+                document.querySelectorAll('.nav-item')[selected.nav].classList.add('active');
+                document.getElementById(selected.content).classList.add('active');
+                if (tab === 'settings') {
+                    refreshCacheInfo();
+                    loadDataSourceSetting();
+                    loadAiConfig();
+                }
             }
         }
 
@@ -397,13 +923,17 @@
             container.innerHTML = '<div class="spinner"></div><div class="empty">正在分析...</div>';
 
             try {
-                const res = await fetch(`/api/analyze/${code}`);
+                const histSource = document.getElementById('analyzeHistSource').value;
+                const res = await fetch(`/api/analyze/${code}?hist_source=${histSource}`);
                 const result = await res.json();
 
                 if (result.success) {
                     renderAnalysis(result);
                 } else {
-                    container.innerHTML = `<div class="empty">分析失败: ${result.error}</div>`;
+                    const hint = result.error === '历史数据不足'
+                        ? '无法获取该股票数据，请检查网络连接或在交易时间重试'
+                        : result.error;
+                    container.innerHTML = `<div class="empty">分析失败: ${hint}</div>`;
                 }
             } catch (err) {
                 container.innerHTML = `<div class="empty">请求失败: ${err.message}</div>`;
@@ -436,7 +966,7 @@
                     <div class="info-card">
                         <h3>基本面得分</h3>
                         <div class="value">${fund.score.total.toFixed(1)}</div>
-                        <div class="change">ROE ${fund.roe.toFixed(2)}% | 毛利率 ${fund.gross_margin.toFixed(2)}%</div>
+                        <div class="change">ROE ${fund.roe.toFixed(2)}% | EPS ${fund.eps.toFixed(2)}</div>
                     </div>
                     <div class="info-card">
                         <h3>成交量</h3>
@@ -478,6 +1008,33 @@
                     </div>
                 </div>
 
+                <h3>基本面指标</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3>盈利能力</h3>
+                        <div style="font-size:14px; line-height:1.8;">
+                            ROE: ${fund.roe.toFixed(2)}%<br>
+                            EPS: ${fund.eps.toFixed(2)}<br>
+                            净利率: ${(fund.net_margin || 0).toFixed(2)}%<br>
+                            毛利率: ${fund.gross_margin.toFixed(2)}%
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <h3>成长性</h3>
+                        <div style="font-size:14px; line-height:1.8;">
+                            营收增长: ${(fund.revenue_growth || 0).toFixed(2)}%<br>
+                            净利润增长: ${(fund.net_profit_growth || 0).toFixed(2)}%
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <h3>偿债能力</h3>
+                        <div style="font-size:14px; line-height:1.8;">
+                            资产负债率: ${(fund.debt_ratio || 0).toFixed(2)}%<br>
+                            流动比率: ${(fund.current_ratio || 0).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+
                 <h3>交易信号</h3>
                 <div class="signals">
                     ${data.signals.map(s => `
@@ -489,6 +1046,24 @@
 
                 <div class="recommendation">
                     <strong>投资建议:</strong> ${data.recommendation}
+                </div>
+
+                <div style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0;">🤖 AI 智能分析</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="ai-export-btn" onclick="exportAiAnalysis()" id="aiExportBtn" style="display:none;">
+                                📷 导出图片
+                            </button>
+                            <button class="btn btn-primary" onclick="runAiAnalysis('${data.code}')" id="aiAnalyzeBtn"
+                                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                开始 AI 分析
+                            </button>
+                        </div>
+                    </div>
+                    <div id="aiAnalysisResult" style="display: none;">
+                        <div id="aiAnalysisContent" class="ai-analysis-content"></div>
+                    </div>
                 </div>
             `;
 
@@ -534,7 +1109,9 @@
                             <th>市净率</th>
                             <th>技术分</th>
                             <th>基本分</th>
+                            <th>情绪分</th>
                             <th>综合分</th>
+                            <th>所属板块</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -552,7 +1129,9 @@
                         <td>${row.pb ? row.pb.toFixed(2) : '-'}</td>
                         <td>${formatScore(row.tech_score)}</td>
                         <td>${formatScore(row.fund_score)}</td>
+                        <td>${formatScore(row.sentiment_score)}</td>
                         <td>${formatScore(row.total_score)}</td>
+                        <td>${row.board_name || '-'}</td>
                     </tr>
                 `;
             });
@@ -578,6 +1157,8 @@
                 min_score: parseFloat(document.getElementById('minScore').value),
                 tech_weight: parseFloat(document.getElementById('techWeight').value),
                 fund_weight: parseFloat(document.getElementById('fundWeight').value),
+                sentiment_weight: parseFloat(document.getElementById('sentimentWeight').value),
+                quote_source: document.getElementById('quoteSource').value,
             };
 
             try {
@@ -619,6 +1200,491 @@
                 console.log('无缓存数据');
             }
         };
+
+        // ========== 板块热度功能 ==========
+
+        // 加载热门板块
+        async function loadHotSectors() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '加载中...';
+
+            const topN = parseInt(document.getElementById('sectorTopN').value);
+            const container = document.getElementById('sectorTableContainer');
+
+            container.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>正在加载板块数据...</p>
+                </div>
+            `;
+
+            try {
+                const res = await fetch(`/api/sectors/hot?top=${topN}`);
+                const result = await res.json();
+
+                if (result.success && result.data.length > 0) {
+                    showSectorStatus(`✅ 加载成功，共 ${result.count} 个热门板块`, 'success');
+                    document.getElementById('sectorTimestamp').textContent = `更新时间: ${new Date().toLocaleString('zh-CN')}`;
+                    renderSectorTable(result.data);
+                } else {
+                    showSectorStatus(`❌ ${result.message || '暂无数据，请检查网络连接或稍后重试'}`, 'error');
+                    container.innerHTML = '<div class="empty">暂无板块数据，请确保网络可用后重试</div>';
+                }
+            } catch (err) {
+                showSectorStatus(`❌ 请求失败: ${err.message}`, 'error');
+                container.innerHTML = '<div class="empty">加载失败，请重试</div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '刷新数据';
+            }
+        }
+
+        // 显示板块状态消息
+        function showSectorStatus(message, type = 'info') {
+            const status = document.getElementById('sectorStatus');
+            status.textContent = message;
+            status.className = `status show ${type}`;
+            setTimeout(() => status.classList.remove('show'), 5000);
+        }
+
+        // 渲染板块表格
+        function renderSectorTable(data) {
+            if (!data || data.length === 0) {
+                document.getElementById('sectorTableContainer').innerHTML = '<div class="empty">暂无板块数据</div>';
+                return;
+            }
+
+            let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>排名</th>
+                            <th>板块名称</th>
+                            <th>板块涨跌幅</th>
+                            <th>情绪得分</th>
+                            <th>上涨家数</th>
+                            <th>下跌家数</th>
+                            <th>总家数</th>
+                            <th>涨跌比</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.forEach((row, idx) => {
+                const upDownRatio = row.total_count > 0 ? (row.up_count / row.total_count * 100).toFixed(1) : 0;
+                const sentimentClass = row.sentiment_score >= 70 ? 'score-high' : row.sentiment_score >= 50 ? 'score-mid' : 'score-low';
+
+                html += `
+                    <tr>
+                        <td><strong>${idx + 1}</strong></td>
+                        <td><strong>${row.board_name}</strong></td>
+                        <td>${formatPctChange(row.board_pct)}</td>
+                        <td><span class="score ${sentimentClass}">${row.sentiment_score.toFixed(1)}</span></td>
+                        <td style="color: #dc3545; font-weight: 600;">${row.up_count}</td>
+                        <td style="color: #28a745; font-weight: 600;">${row.down_count}</td>
+                        <td>${row.total_count}</td>
+                        <td>${upDownRatio}%</td>
+                        <td>
+                            <button class="btn" onclick="viewSectorDetail('${row.board_name}')"
+                                style="padding: 6px 12px; font-size: 13px; background: #667eea; color: white;">
+                                查看详情
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('sectorTableContainer').innerHTML = html;
+        }
+
+        // 查看板块详情
+        async function viewSectorDetail(sectorName) {
+            const detailContainer = document.getElementById('sectorDetailContainer');
+            const contentDiv = document.getElementById('sectorDetailContent');
+
+            detailContainer.style.display = 'block';
+            document.getElementById('sectorDetailTitle').textContent = `${sectorName} - 详细分析`;
+
+            contentDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>正在分析板块...</p>
+                </div>
+            `;
+
+            // 滚动到详情区域
+            detailContainer.scrollIntoView({ behavior: 'smooth' });
+
+            try {
+                const res = await fetch(`/api/sectors/${encodeURIComponent(sectorName)}`);
+                const result = await res.json();
+
+                if (result.success) {
+                    renderSectorDetail(result);
+                } else {
+                    contentDiv.innerHTML = `<div class="empty">分析失败: ${result.error}</div>`;
+                }
+            } catch (err) {
+                contentDiv.innerHTML = `<div class="empty">请求失败: ${err.message}</div>`;
+            }
+        }
+
+        // 渲染板块详情
+        function renderSectorDetail(data) {
+            const summary = data.summary;
+            const sentiment = data.sector_sentiment;
+            const topStocks = data.top_stocks;
+
+            let html = `
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h3>成分股数量</h3>
+                        <div class="value">${summary.total_stocks}</div>
+                        <div class="change">上涨 ${summary.up_count} | 下跌 ${summary.down_count}</div>
+                    </div>
+                    <div class="info-card">
+                        <h3>平均涨跌幅</h3>
+                        <div class="value ${summary.avg_pct_change >= 0 ? 'change positive' : 'change negative'}">
+                            ${summary.avg_pct_change >= 0 ? '+' : ''}${summary.avg_pct_change}%
+                        </div>
+                        <div class="change">最高 ${summary.max_pct_change}% | 最低 ${summary.min_pct_change}%</div>
+                    </div>
+                    <div class="info-card">
+                        <h3>总成交额</h3>
+                        <div class="value">${summary.total_turnover}亿</div>
+                    </div>
+                    <div class="info-card">
+                        <h3>平均估值</h3>
+                        <div class="value">PE ${summary.avg_pe}</div>
+                        <div class="change">PB ${summary.avg_pb}</div>
+                    </div>
+            `;
+
+            if (sentiment && sentiment.sentiment_score) {
+                html += `
+                    <div class="info-card">
+                        <h3>板块情绪</h3>
+                        <div class="value">${sentiment.sentiment_score.toFixed(1)}</div>
+                        <div class="change">板块涨幅 ${sentiment.board_pct >= 0 ? '+' : ''}${sentiment.board_pct}%</div>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+
+            // 涨幅榜
+            if (topStocks.gainers && topStocks.gainers.length > 0) {
+                html += `
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">涨幅榜 TOP10</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>代码</th>
+                                <th>名称</th>
+                                <th>价格</th>
+                                <th>涨跌幅</th>
+                                <th>换手率</th>
+                                <th>市盈率</th>
+                                <th>市净率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                topStocks.gainers.forEach(stock => {
+                    html += `
+                        <tr>
+                            <td>${stock.code}</td>
+                            <td>${stock.name}</td>
+                            <td>${stock.price ? stock.price.toFixed(2) : '-'}</td>
+                            <td>${formatPctChange(stock.pct_change)}</td>
+                            <td>${stock.turnover_rate ? stock.turnover_rate.toFixed(2) + '%' : '-'}</td>
+                            <td>${stock.pe ? stock.pe.toFixed(2) : '-'}</td>
+                            <td>${stock.pb ? stock.pb.toFixed(2) : '-'}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+            }
+
+            // 跌幅榜
+            if (topStocks.losers && topStocks.losers.length > 0) {
+                html += `
+                    <h3 style="margin-top: 30px; margin-bottom: 15px;">跌幅榜 TOP10</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>代码</th>
+                                <th>名称</th>
+                                <th>价格</th>
+                                <th>涨跌幅</th>
+                                <th>换手率</th>
+                                <th>市盈率</th>
+                                <th>市净率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                topStocks.losers.forEach(stock => {
+                    html += `
+                        <tr>
+                            <td>${stock.code}</td>
+                            <td>${stock.name}</td>
+                            <td>${stock.price ? stock.price.toFixed(2) : '-'}</td>
+                            <td>${formatPctChange(stock.pct_change)}</td>
+                            <td>${stock.turnover_rate ? stock.turnover_rate.toFixed(2) + '%' : '-'}</td>
+                            <td>${stock.pe ? stock.pe.toFixed(2) : '-'}</td>
+                            <td>${stock.pb ? stock.pb.toFixed(2) : '-'}</td>
+                        </tr>
+                    `;
+                });
+
+                html += '</tbody></table>';
+            }
+
+            document.getElementById('sectorDetailContent').innerHTML = html;
+        }
+
+        // 关闭板块详情
+        function closeSectorDetail() {
+            document.getElementById('sectorDetailContainer').style.display = 'none';
+        }
+
+        // ========== AI 智能分析 ==========
+
+        // 当前分析的股票代码（用于导出文件名）
+        let currentAiStockCode = '';
+
+        async function runAiAnalysis(code) {
+            currentAiStockCode = code;
+            const btn = document.getElementById('aiAnalyzeBtn');
+            const exportBtn = document.getElementById('aiExportBtn');
+            const resultDiv = document.getElementById('aiAnalysisResult');
+            const contentDiv = document.getElementById('aiAnalysisContent');
+
+            btn.disabled = true;
+            btn.textContent = 'AI 分析中...';
+            exportBtn.style.display = 'none';
+            resultDiv.style.display = 'block';
+            contentDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Claude 正在分析技术指标，请稍候...</p></div>';
+
+            try {
+                const histSource = document.getElementById('analyzeHistSource').value;
+                const res = await fetch(`/api/ai-analyze/${code}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hist_source: histSource })
+                });
+
+                const result = await res.json();
+
+                if (result.success) {
+                    contentDiv.innerHTML = marked.parse(result.analysis);
+                    exportBtn.style.display = 'inline-block';
+                } else {
+                    contentDiv.innerHTML = `<div style="color: #dc3545;">AI 分析失败: ${result.error}</div>`;
+                }
+            } catch (err) {
+                contentDiv.innerHTML = `<div style="color: #dc3545;">请求失败: ${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '开始 AI 分析';
+            }
+        }
+
+        async function exportAiAnalysis() {
+            const contentDiv = document.getElementById('aiAnalysisContent');
+            const exportBtn = document.getElementById('aiExportBtn');
+
+            exportBtn.disabled = true;
+            exportBtn.textContent = '导出中...';
+
+            try {
+                const canvas = await html2canvas(contentDiv, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    width: contentDiv.scrollWidth,
+                    height: contentDiv.scrollHeight,
+                });
+
+                const link = document.createElement('a');
+                const now = new Date();
+                const dateStr = now.getFullYear()
+                    + String(now.getMonth() + 1).padStart(2, '0')
+                    + String(now.getDate()).padStart(2, '0');
+                link.download = `AI分析_${currentAiStockCode}_${dateStr}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } catch (err) {
+                alert('导出失败: ' + err.message);
+            } finally {
+                exportBtn.disabled = false;
+                exportBtn.textContent = '📷 导出图片';
+            }
+        }
+
+        // ========== 系统设置功能 ==========
+
+        function showSettingsStatus(message, type = 'info') {
+            const status = document.getElementById('settingsStatus');
+            status.textContent = message;
+            status.className = `status show ${type}`;
+            setTimeout(() => status.classList.remove('show'), 5000);
+        }
+
+        async function loadDataSourceSetting() {
+            try {
+                const res = await fetch('/api/settings/data-source');
+                const result = await res.json();
+                if (result.success) {
+                    const source = result.data.source || 'ths';
+                    document.getElementById(source === 'ths' ? 'sourceThs' : 'sourceEm').checked = true;
+                }
+            } catch (err) {
+                console.error('加载数据源设置失败:', err);
+            }
+        }
+
+        // ========== AI 配置 ==========
+
+        async function loadAiConfig() {
+            try {
+                const res = await fetch('/api/settings/ai');
+                const result = await res.json();
+                if (result.success) {
+                    const d = result.data;
+                    document.getElementById('aiBaseUrl').value = d.base_url || '';
+                    document.getElementById('aiApiKey').placeholder = d.has_key ? `已配置 (${d.api_key_masked})` : '请输入 API Key';
+                    document.getElementById('aiModel').value = d.model || 'claude-sonnet-4-20250514';
+                    document.getElementById('aiMaxTokens').value = d.max_tokens || 2000;
+                }
+            } catch (err) {
+                console.error('加载AI配置失败:', err);
+            }
+        }
+
+        function showAiConfigStatus(message, type = 'info') {
+            const status = document.getElementById('aiConfigStatus');
+            status.textContent = message;
+            status.className = `status show ${type}`;
+            setTimeout(() => status.classList.remove('show'), 5000);
+        }
+
+        async function saveAiConfig() {
+            const data = {
+                base_url: document.getElementById('aiBaseUrl').value.trim(),
+                api_key: document.getElementById('aiApiKey').value.trim(),
+                model: document.getElementById('aiModel').value.trim(),
+                max_tokens: document.getElementById('aiMaxTokens').value.trim(),
+            };
+
+            // api_key 为空表示不修改
+            if (!data.api_key) delete data.api_key;
+
+            try {
+                const res = await fetch('/api/settings/ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showAiConfigStatus('✅ ' + result.message, 'success');
+                    document.getElementById('aiApiKey').value = '';
+                    loadAiConfig();
+                } else {
+                    showAiConfigStatus('❌ ' + result.message, 'error');
+                }
+            } catch (err) {
+                showAiConfigStatus('❌ 保存失败: ' + err.message, 'error');
+            }
+        }
+
+        async function testAiConnection() {
+            const btn = document.getElementById('aiTestBtn');
+            btn.disabled = true;
+            btn.textContent = '测试中...';
+            showAiConfigStatus('正在测试连接...', 'info');
+
+            try {
+                const res = await fetch('/api/settings/ai/test', { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    showAiConfigStatus('✅ ' + result.message, 'success');
+                } else {
+                    showAiConfigStatus('❌ ' + result.message, 'error');
+                }
+            } catch (err) {
+                showAiConfigStatus('❌ 测试失败: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '测试连接';
+            }
+        }
+
+        async function saveDataSource() {
+            const source = document.querySelector('input[name="dataSource"]:checked').value;
+            try {
+                const res = await fetch('/api/settings/data-source', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source })
+                });
+                const result = await res.json();
+
+                if (result.success) {
+                    showSettingsStatus(`✅ ${result.message}`, 'success');
+                } else {
+                    showSettingsStatus(`❌ ${result.message}`, 'error');
+                }
+            } catch (err) {
+                showSettingsStatus(`❌ 保存失败: ${err.message}`, 'error');
+            }
+        }
+
+        async function refreshCacheInfo() {
+            try {
+                const res = await fetch('/api/cache/info');
+                const result = await res.json();
+
+                if (result.success) {
+                    const d = result.data;
+                    document.getElementById('cacheStatus').textContent = d.total_size;
+                    document.getElementById('cacheSize').textContent = `共 ${d.total_files} 个文件`;
+                    document.getElementById('cacheFileCount').textContent = d.total_files;
+                    document.getElementById('cacheLastUpdate').textContent = d.last_update || '无缓存';
+                }
+            } catch (err) {
+                document.getElementById('cacheStatus').textContent = '获取失败';
+            }
+        }
+
+        async function clearCache(type) {
+            const labels = { all: '所有缓存', board: '板块缓存', sector: '成分股缓存', stock: '个股缓存' };
+            if (!confirm(`确定要清理${labels[type]}吗？`)) return;
+
+            try {
+                const res = await fetch(`/api/cache/clear?type=${type}`, { method: 'POST' });
+                const result = await res.json();
+
+                if (result.success) {
+                    showSettingsStatus(`✅ ${result.message}`, 'success');
+                    refreshCacheInfo();
+                } else {
+                    showSettingsStatus(`❌ ${result.message}`, 'error');
+                }
+            } catch (err) {
+                showSettingsStatus(`❌ 请求失败: ${err.message}`, 'error');
+            }
+        }
     </script>
 </body>
 </html>

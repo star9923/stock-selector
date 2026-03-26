@@ -5,7 +5,7 @@ main.py - 入口文件（单线程稳定版）
 import argparse
 import pandas as pd
 from datetime import datetime
-from selector import run_selection
+from core.selector import run_selection
 
 
 def main():

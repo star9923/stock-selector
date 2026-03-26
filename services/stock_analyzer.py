@@ -4,15 +4,17 @@ stock_analyzer.py - 个股深度分析模块
 import pandas as pd
 import json
 from datetime import datetime
-from data_fetcher import get_daily_history, get_financial_indicator, _STOCK_MAPPING
-from indicators import add_indicators, score_technical
-from fundamental import score_fundamental
+from data.data_fetcher import get_daily_history, _get_daily_history_em, _get_daily_history_sina, get_financial_indicator, _STOCK_MAPPING
+from core.indicators import add_indicators, score_technical
+from core.fundamental import score_fundamental
+from services.sentiment import score_sentiment, get_sentiment_data
 
 
-def analyze_stock(code: str) -> dict:
+def analyze_stock(code: str, enable_sentiment: bool = True, hist_source: str = "auto") -> dict:
     """
     深度分析单只股票
     :param code: 股票代码
+    :param enable_sentiment: 是否启用情绪分析
     :return: 分析结果字典
     """
     result = {
@@ -23,14 +25,27 @@ def analyze_stock(code: str) -> dict:
         "basic_info": {},
         "technical": {},
         "fundamental": {},
+        "sentiment": {},
         "price_data": [],
         "signals": [],
         "recommendation": "",
     }
 
     try:
-        # 1. 获取历史数据
-        hist = get_daily_history(code, days=120)
+        # 1. 获取历史数据（根据数据源选择）
+        from data.stock_data_fallback import get_stock_history_with_fallback
+
+        source_names = {"auto": "自动选择", "sina": "新浪财经", "em": "东方财富"}
+        print(f"   历史数据源: {source_names.get(hist_source, hist_source)}")
+
+        if hist_source == "sina":
+            hist = _get_daily_history_sina(code, days=120)
+        elif hist_source == "em":
+            hist = _get_daily_history_em(code, days=120)
+        else:
+            # auto: 使用多源降级
+            hist = get_stock_history_with_fallback(code, days=120)
+
         if hist.empty or len(hist) < 60:
             result["error"] = "历史数据不足"
             return result
@@ -94,9 +109,39 @@ def analyze_stock(code: str) -> dict:
             "roe": sf(financial.get("roe", 0)),
             "eps": sf(financial.get("eps", 0)),
             "gross_margin": sf(financial.get("gross_margin", 0)),
+            "net_margin": sf(financial.get("net_margin", 0)),
+            "revenue_growth": sf(financial.get("revenue_growth", 0)),
+            "net_profit_growth": sf(financial.get("net_profit_growth", 0)),
+            "debt_ratio": sf(financial.get("debt_ratio", 0)),
+            "current_ratio": sf(financial.get("current_ratio", 0)),
         }
 
-        # 5. 价格数据（最近60天）
+        # 5. 情绪分析
+        if enable_sentiment:
+            try:
+                hot_stocks, board_sentiment, stock_board_map, guba_data = get_sentiment_data()
+                sentiment = score_sentiment(code, hot_stocks, board_sentiment, stock_board_map, guba_data)
+                result["sentiment"] = {
+                    "score": sentiment["total"],
+                    "hot_score": sentiment["hot_score"],
+                    "board_score": sentiment["board_score"],
+                    "guba_score": sentiment.get("guba_score", 0),
+                    "board_name": sentiment["board_name"],
+                }
+                # 如果有股吧详细信息，添加到结果中
+                if "guba_info" in sentiment:
+                    result["sentiment"]["guba_info"] = sentiment["guba_info"]
+            except Exception as e:
+                result["sentiment"] = {
+                    "score": 0,
+                    "hot_score": 0,
+                    "board_score": 0,
+                    "guba_score": 0,
+                    "board_name": "未知",
+                    "error": str(e),
+                }
+
+        # 6. 价格数据（最近60天）
         recent = hist.tail(60)
         result["price_data"] = [
             {
@@ -113,12 +158,13 @@ def analyze_stock(code: str) -> dict:
             for _, row in recent.iterrows()
         ]
 
-        # 6. 交易信号
+        # 7. 交易信号
         signals = generate_signals(hist, tech_score, fund_score)
         result["signals"] = signals
 
-        # 7. 投资建议
-        total_score = tech_score["total"] * 0.6 + fund_score["total"] * 0.4
+        # 8. 投资建议
+        sentiment_score = result["sentiment"].get("score", 0) if enable_sentiment else 0
+        total_score = tech_score["total"] * 0.4 + fund_score["total"] * 0.3 + sentiment_score * 0.3
         result["recommendation"] = generate_recommendation(total_score, signals)
 
         result["success"] = True
