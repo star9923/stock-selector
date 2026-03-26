@@ -8,6 +8,7 @@ import data.akshare_config
 import akshare as ak
 from anthropic import Anthropic
 from datetime import datetime, timedelta
+from utils.network_helper import retry_on_connection_error
 
 
 AI_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'ai_config.json')
@@ -46,6 +47,7 @@ def get_client() -> Anthropic:
     )
 
 
+@retry_on_connection_error(max_retries=3, delay=2)
 def get_stock_news(code: str, max_count: int = 30) -> list:
     """
     获取个股近期新闻
@@ -188,13 +190,18 @@ def analyze_with_ai(stock_data: dict) -> str:
 
     try:
         config = load_ai_config()
-        response = client.messages.create(
-            model=config.get("model", "claude-sonnet-4-20250514"),
-            max_tokens=config.get("max_tokens", 2000),
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-        )
+
+        @retry_on_connection_error(max_retries=3, delay=3, timeout=60)
+        def call_api():
+            return client.messages.create(
+                model=config.get("model", "claude-sonnet-4-20250514"),
+                max_tokens=config.get("max_tokens", 2000),
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+            )
+
+        response = call_api()
         return response.content[0].text
     except Exception as e:
         return f"AI 分析失败: {str(e)}"

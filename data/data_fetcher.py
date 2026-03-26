@@ -7,6 +7,7 @@ import pandas as pd
 import json
 import os
 from datetime import datetime, timedelta
+from utils.network_helper import retry_on_connection_error
 
 # 加载本地股票映射
 _STOCK_MAPPING = {}
@@ -44,6 +45,7 @@ def get_daily_history(code: str, days: int = 120) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+@retry_on_connection_error(max_retries=3, delay=2)
 def _get_daily_history_em(code: str, days: int = 120) -> pd.DataFrame:
     """从东方财富获取历史数据"""
     end = datetime.today().strftime("%Y%m%d")
@@ -218,82 +220,71 @@ def get_realtime_quotes_from_xueqiu() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@retry_on_connection_error(max_retries=3, delay=2, timeout=30)
 def get_realtime_quotes_from_sina() -> pd.DataFrame:
     """
     从新浪财经获取全市场实时行情（推荐）
     优势：稳定、快速、非交易时间也可用
     :return: DataFrame
     """
-    import time
+    try:
+        print(f"   使用新浪财经获取全市场行情...")
+        df = ak.stock_zh_a_spot()
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            print(f"   使用新浪财经获取全市场行情...")
-            df = ak.stock_zh_a_spot()
+        if df.empty:
+            print(f"   ⚠️  新浪财经返回空数据")
+            return pd.DataFrame()
 
-            if df.empty:
-                print(f"   ⚠️  新浪财经返回空数据")
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                    continue
-                return pd.DataFrame()
+        # 处理股票代码格式（新浪可能带有 sh/sz 前缀）
+        if 'code' not in df.columns and '代码' in df.columns:
+            df['code'] = df['代码']
 
-            # 处理股票代码格式（新浪可能带有 sh/sz 前缀）
-            if 'code' not in df.columns and '代码' in df.columns:
-                df['code'] = df['代码']
+        # 清理代码格式（去除 sh/sz/bj 前缀）
+        if 'code' in df.columns:
+            df['code'] = df['code'].str.replace(r'^(sh|sz|bj)', '', regex=True)
 
-            # 清理代码格式（去除 sh/sz/bj 前缀）
-            if 'code' in df.columns:
-                df['code'] = df['code'].str.replace(r'^(sh|sz|bj)', '', regex=True)
+        # 重命名列以匹配原有格式
+        column_mapping = {
+            "代码": "code",
+            "名称": "name",
+            "最新价": "price",
+            "涨跌幅": "pct_change",
+            "成交量": "volume",
+            "成交额": "turnover",
+            "换手率": "turnover_rate",
+            "市盈率": "pe",
+            "市净率": "pb",
+            "总市值": "market_cap",
+            "流通市值": "float_cap",
+        }
 
-            # 重命名列以匹配原有格式
-            column_mapping = {
-                "代码": "code",
-                "名称": "name",
-                "最新价": "price",
-                "涨跌幅": "pct_change",
-                "成交量": "volume",
-                "成交额": "turnover",
-                "换手率": "turnover_rate",
-                "市盈率": "pe",
-                "市净率": "pb",
-                "总市值": "market_cap",
-                "流通市值": "float_cap",
-            }
+        for old_col, new_col in column_mapping.items():
+            if old_col in df.columns and new_col not in df.columns:
+                df[new_col] = df[old_col]
 
-            for old_col, new_col in column_mapping.items():
-                if old_col in df.columns and new_col not in df.columns:
-                    df[new_col] = df[old_col]
+        # 确保必要的列存在
+        for col in ["pe", "pb", "market_cap", "float_cap"]:
+            if col not in df.columns:
+                df[col] = 0
 
-            # 确保必要的列存在
-            for col in ["pe", "pb", "market_cap", "float_cap"]:
-                if col not in df.columns:
-                    df[col] = 0
+        # 选择需要的列
+        required_cols = ["code", "name", "price", "pct_change", "volume",
+                        "turnover", "turnover_rate", "pe", "pb", "market_cap", "float_cap"]
 
-            # 选择需要的列
-            required_cols = ["code", "name", "price", "pct_change", "volume",
-                            "turnover", "turnover_rate", "pe", "pb", "market_cap", "float_cap"]
+        # 只保留存在的列
+        available_cols = [col for col in required_cols if col in df.columns]
+        df = df[available_cols]
 
-            # 只保留存在的列
-            available_cols = [col for col in required_cols if col in df.columns]
-            df = df[available_cols]
+        # 过滤掉无效数据
+        df = df[df['code'].notna()]
+        df = df[df['code'].str.len() == 6]  # 只保留6位代码
 
-            # 过滤掉无效数据
-            df = df[df['code'].notna()]
-            df = df[df['code'].str.len() == 6]  # 只保留6位代码
+        print(f"   ✅ 新浪财经: 获取到 {len(df)} 只股票")
+        return df
 
-            print(f"   ✅ 新浪财经: 获取到 {len(df)} 只股票")
-            return df
-
-        except Exception as e:
-            print(f"   ⚠️  新浪财经失败 (尝试 {attempt + 1}/{max_retries}): {str(e)[:50]}")
-            if attempt < max_retries - 1:
-                time.sleep(2)
-            else:
-                return pd.DataFrame()
-
-    return pd.DataFrame()
+    except Exception as e:
+        print(f"   ⚠️  新浪财经失败: {str(e)[:50]}")
+        return pd.DataFrame()
 
 
 def get_realtime_quotes_from_em(codes: list, max_workers: int = 8) -> pd.DataFrame:

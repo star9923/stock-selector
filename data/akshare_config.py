@@ -4,6 +4,7 @@ akshare_config.py - AkShare 统一配置
 """
 import os
 import warnings
+import socket
 
 # 必须在导入 requests/akshare 之前设置
 os.environ['NO_PROXY'] = '*'
@@ -22,4 +23,7 @@ warnings.filterwarnings('ignore', category=Warning)
 import urllib3
 urllib3.disable_warnings()
 
-print("   ℹ️  已禁用代理，直连 API")
+# 设置默认 socket 超时（防止连接挂起）
+socket.setdefaulttimeout(30)
+
+print("   ℹ️  已禁用代理，直连 API (超时: 30秒)")

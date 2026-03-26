@@ -10,6 +10,7 @@ import pandas as pd
 import os
 import json
 from datetime import datetime, timedelta
+from utils.network_helper import retry_on_connection_error
 
 
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'settings.json')
@@ -106,6 +107,7 @@ def load_board_quote_cache(max_age_hours: int = 1) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@retry_on_connection_error(max_retries=3, delay=2)
 def get_board_list_from_ths() -> pd.DataFrame:
     """
     从同花顺获取行业板块列表
@@ -124,6 +126,7 @@ def get_board_list_from_ths() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@retry_on_connection_error(max_retries=3, delay=2)
 def get_board_list_from_em() -> pd.DataFrame:
     """
     从东方财富获取行业板块列表
@@ -142,14 +145,11 @@ def get_board_list_from_em() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+@retry_on_connection_error(max_retries=3, delay=2, timeout=30)
 def get_board_sentiment_from_em() -> pd.DataFrame:
     """
     从东方财富获取板块实时行情（含涨跌幅、上涨下跌家数）
     """
-    import socket
-    original_timeout = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(30)
-
     try:
         df = ak.stock_board_industry_spot_em()
         if df.empty:
@@ -177,8 +177,6 @@ def get_board_sentiment_from_em() -> pd.DataFrame:
     except Exception as e:
         print(f"   ⚠️  东方财富板块行情失败: {str(e)[:50]}")
         return pd.DataFrame()
-    finally:
-        socket.setdefaulttimeout(original_timeout)
 
 
 def get_board_list_multi_source() -> pd.DataFrame:
