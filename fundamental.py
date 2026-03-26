@@ -130,16 +130,17 @@ def filter_basic(df_realtime: pd.DataFrame) -> pd.DataFrame:
             ~df_realtime["name"].str.contains("ST|退", na=False, regex=True)
         ]
 
-    # 流通市值 > 20亿
+    # 流通市值 > 20亿（如果没有市值数据，用成交额估算）
     if "float_cap" in df_realtime.columns:
-        df_realtime = df_realtime[
-            pd.to_numeric(df_realtime["float_cap"], errors="coerce").fillna(0) >= 2e9
-        ]
+        float_cap = pd.to_numeric(df_realtime["float_cap"], errors="coerce").fillna(0)
+        turnover = pd.to_numeric(df_realtime["turnover"], errors="coerce").fillna(0)
+        estimated_cap = float_cap.where(float_cap > 0, turnover * 100)
+        df_realtime = df_realtime[estimated_cap >= 2e9]
 
-    # 价格 > 2 元（去仙股）
+    # 价格 > 1 元（去仙股）
     if "price" in df_realtime.columns:
         df_realtime = df_realtime[
-            pd.to_numeric(df_realtime["price"], errors="coerce").fillna(0) >= 2.0
+            pd.to_numeric(df_realtime["price"], errors="coerce").fillna(0) >= 1.0
         ]
 
     # 去掉涨停/跌停（避免追高杀跌）
@@ -151,6 +152,12 @@ def filter_basic(df_realtime: pd.DataFrame) -> pd.DataFrame:
     if "volume" in df_realtime.columns:
         df_realtime = df_realtime[
             pd.to_numeric(df_realtime["volume"], errors="coerce").fillna(0) > 0
+        ]
+
+    # 成交额 > 1000万（过滤成交不活跃股票）
+    if "turnover" in df_realtime.columns:
+        df_realtime = df_realtime[
+            pd.to_numeric(df_realtime["turnover"], errors="coerce").fillna(0) > 1e7
         ]
 
     return df_realtime.reset_index(drop=True)

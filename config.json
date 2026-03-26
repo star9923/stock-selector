@@ -1,0 +1,12 @@
+{
+  "top": 20,
+  "min_score": 0,
+  "tech_weight": 0.6,
+  "fund_weight": 0.4,
+  "max_workers": 4,
+  "interval_minutes": 60,
+  "github": {
+    "auto_commit": true,
+    "commit_message": "Auto update stock selection results"
+  }
+}
