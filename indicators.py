@@ -88,7 +88,7 @@ def score_technical(df: pd.DataFrame) -> dict:
     """
     对单只股票技术面打分，返回详细得分字典
     """
-    if df.empty or len(df) < 60:
+    if df.empty or len(df) < 30:
         return {"total": 0.0, "trend": 0, "momentum": 0, "volume": 0, "risk": 0}
 
     latest = df.iloc[-1]

@@ -9,7 +9,7 @@ def score_fundamental(realtime: dict, financial: dict) -> dict:
     """
     基本面打分，返回详细得分字典
     :param realtime: 实时行情字段 (pe, pb, market_cap, turnover_rate, pct_change)
-    :param financial: 财务指标字段 (roe, eps, gross_margin)
+    :param financial: 财务指标字段 (roe, debt_ratio)
     """
     valuation_score = 0
     profitability_score = 0
@@ -21,27 +21,28 @@ def score_fundamental(realtime: dict, financial: dict) -> dict:
     pb = _safe_float(realtime.get("pb"))
 
     # PE 估值
-    if 0 < pe <= 15:
-        valuation_score += 15
-    elif 15 < pe <= 25:
-        valuation_score += 10
-    elif 25 < pe <= 40:
-        valuation_score += 5
-    elif pe > 80:  # 估值过高，扣分
-        valuation_score -= 5
+    if pe > 0:
+        if pe <= 15:
+            valuation_score += 15
+        elif pe <= 25:
+            valuation_score += 10
+        elif pe <= 40:
+            valuation_score += 5
+        elif pe > 80:
+            valuation_score -= 5
 
     # PB 估值
-    if 0 < pb <= 1.5:
-        valuation_score += 15
-    elif 1.5 < pb <= 2.5:
-        valuation_score += 10
-    elif 2.5 < pb <= 4:
-        valuation_score += 5
+    if pb > 0:
+        if pb <= 1.5:
+            valuation_score += 15
+        elif pb <= 2.5:
+            valuation_score += 10
+        elif pb <= 4:
+            valuation_score += 5
 
     # ========== 盈利能力得分 (30分) ==========
     roe = _safe_float(financial.get("roe"))
-    gross_margin = _safe_float(financial.get("gross_margin"))
-    eps = _safe_float(financial.get("eps"))
+    debt_ratio = _safe_float(financial.get("debt_ratio"))
 
     # ROE（净资产收益率）
     if roe >= 20:
@@ -52,41 +53,36 @@ def score_fundamental(realtime: dict, financial: dict) -> dict:
         profitability_score += 8
     elif roe >= 5:
         profitability_score += 4
-    elif roe < 0:  # 亏损，扣分
+    elif roe < 0:
         profitability_score -= 10
 
-    # 毛利率
-    if gross_margin >= 50:
-        profitability_score += 10
-    elif gross_margin >= 35:
-        profitability_score += 7
-    elif gross_margin >= 20:
-        profitability_score += 4
-
-    # EPS（每股收益）
-    if eps > 1.0:
-        profitability_score += 5
-    elif eps > 0.5:
-        profitability_score += 3
+    # 资产负债率（越低越好）
+    if debt_ratio > 0:
+        if debt_ratio <= 30:
+            profitability_score += 15
+        elif debt_ratio <= 50:
+            profitability_score += 10
+        elif debt_ratio <= 70:
+            profitability_score += 5
 
     # ========== 成长性得分 (20分) ==========
     # 近期涨幅（短期动量）
     pct_change = _safe_float(realtime.get("pct_change"))
-    if -2 <= pct_change <= 5:  # 温和上涨
+    if -2 <= pct_change <= 5:
         growth_score += 10
-    elif 5 < pct_change <= 9:  # 强势但未过热
+    elif 5 < pct_change <= 9:
         growth_score += 7
-    elif pct_change < -5:  # 大跌，扣分
+    elif pct_change < -5:
         growth_score -= 5
 
     # 市值规模（偏好中大盘）
     market_cap = _safe_float(realtime.get("market_cap"))
     if market_cap > 0:
-        if 50e9 <= market_cap <= 500e9:  # 50亿~500亿
+        if 50e9 <= market_cap <= 500e9:
             growth_score += 10
         elif 20e9 <= market_cap < 50e9:
             growth_score += 6
-        elif market_cap >= 500e9:  # 大盘股
+        elif market_cap >= 500e9:
             growth_score += 4
 
     # ========== 流动性得分 (20分) ==========
@@ -99,7 +95,7 @@ def score_fundamental(realtime: dict, financial: dict) -> dict:
         liquidity_score += 8
     elif 0.5 <= turnover_rate < 1:
         liquidity_score += 4
-    elif turnover_rate > 20:  # 过度投机
+    elif turnover_rate > 20:
         liquidity_score -= 5
 
     # 市值流动性（大市值 + 适中换手）
@@ -154,11 +150,10 @@ def filter_basic(df_realtime: pd.DataFrame) -> pd.DataFrame:
             pd.to_numeric(df_realtime["volume"], errors="coerce").fillna(0) > 0
         ]
 
-    # 成交额 > 1000万（过滤成交不活跃股票）
+    # 成交额 > 0 且 > 1000万（非交易时段成交额可能为0，需要特殊处理）
     if "turnover" in df_realtime.columns:
-        df_realtime = df_realtime[
-            pd.to_numeric(df_realtime["turnover"], errors="coerce").fillna(0) > 1e7
-        ]
+        turnover = pd.to_numeric(df_realtime["turnover"], errors="coerce").fillna(0)
+        df_realtime = df_realtime[(turnover > 0) & (turnover > 1e7)]
 
     return df_realtime.reset_index(drop=True)
 

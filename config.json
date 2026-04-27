@@ -1,9 +1,11 @@
 {
-  "top": 20,
-  "min_score": 0,
-  "tech_weight": 0.6,
-  "fund_weight": 0.4,
-  "max_workers": 4,
+  "top": 10,
+  "min_score": 20,
+  "tech_weight": 0.8,
+  "fund_weight": 0.2,
+  "max_stocks": 5000,
+  "max_analyze": 500,
+  "max_workers": 16,
   "interval_minutes": 60,
   "github": {
     "auto_commit": true,

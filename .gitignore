@@ -3,3 +3,7 @@ __pycache__/
 *.pyo
 result_*.csv
 .DS_Store
+node_modules
+frontend/node_modules
+frontend/dist/
+/frontend/public/assets
