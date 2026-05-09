@@ -4,7 +4,7 @@ stock_analyzer.py - 个股深度分析模块
 import pandas as pd
 import json
 from datetime import datetime
-from data.data_fetcher import get_daily_history, _get_daily_history_em, _get_daily_history_sina, get_financial_indicator, _STOCK_MAPPING
+from data.data_fetcher import get_daily_history, _get_daily_history_em, _get_daily_history_sina, _get_daily_history_tx, get_financial_indicator, _STOCK_MAPPING
 from core.indicators import add_indicators, score_technical
 from core.fundamental import score_fundamental
 from services.sentiment import score_sentiment, get_sentiment_data
@@ -35,10 +35,12 @@ def analyze_stock(code: str, enable_sentiment: bool = True, hist_source: str = "
         # 1. 获取历史数据（根据数据源选择）
         from data.stock_data_fallback import get_stock_history_with_fallback
 
-        source_names = {"auto": "自动选择", "sina": "新浪财经", "em": "东方财富"}
+        source_names = {"auto": "自动选择", "tx": "腾讯财经", "sina": "新浪财经", "em": "东方财富"}
         print(f"   历史数据源: {source_names.get(hist_source, hist_source)}")
 
-        if hist_source == "sina":
+        if hist_source == "tx":
+            hist = _get_daily_history_tx(code, days=120)
+        elif hist_source == "sina":
             hist = _get_daily_history_sina(code, days=120)
         elif hist_source == "em":
             hist = _get_daily_history_em(code, days=120)

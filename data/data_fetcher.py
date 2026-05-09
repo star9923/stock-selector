@@ -6,6 +6,7 @@ import akshare as ak
 import pandas as pd
 import json
 import os
+import threading
 from datetime import datetime, timedelta
 
 # 加载本地股票映射
@@ -14,6 +15,53 @@ _mapping_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "stock_
 if os.path.exists(_mapping_file):
     with open(_mapping_file, "r", encoding="utf-8") as f:
         _STOCK_MAPPING = json.load(f)
+
+# 财务指标缓存：内存 + 磁盘（24h TTL）
+_FIN_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache", "financial")
+_FIN_CACHE_TTL = timedelta(hours=24)
+_fin_mem_cache: dict = {}
+_fin_cache_lock = threading.Lock()
+
+
+def _fin_cache_path(code: str) -> str:
+    return os.path.join(_FIN_CACHE_DIR, f"{code}.json")
+
+
+def _load_financial_cache(code: str) -> dict:
+    """读财务指标缓存：内存命中直接返回；磁盘命中则回填内存。过期或缺失返回 None。"""
+    with _fin_cache_lock:
+        entry = _fin_mem_cache.get(code)
+    if entry and datetime.now() - entry["ts"] <= _FIN_CACHE_TTL:
+        return entry["data"]
+
+    path = _fin_cache_path(code)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        ts = datetime.fromisoformat(payload["timestamp"])
+        if datetime.now() - ts > _FIN_CACHE_TTL:
+            return None
+        data = payload["data"]
+        with _fin_cache_lock:
+            _fin_mem_cache[code] = {"ts": ts, "data": data}
+        return data
+    except Exception:
+        return None
+
+
+def _save_financial_cache(code: str, data: dict) -> None:
+    """写财务指标缓存：内存立即生效，磁盘落盘失败不影响主流程。"""
+    now = datetime.now()
+    with _fin_cache_lock:
+        _fin_mem_cache[code] = {"ts": now, "data": data}
+    try:
+        os.makedirs(_FIN_CACHE_DIR, exist_ok=True)
+        with open(_fin_cache_path(code), "w", encoding="utf-8") as f:
+            json.dump({"timestamp": now.isoformat(), "data": data}, f, ensure_ascii=False)
+    except Exception:
+        pass
 
 
 def get_stock_list() -> pd.DataFrame:
@@ -26,22 +74,67 @@ def get_stock_list() -> pd.DataFrame:
 def get_daily_history(code: str, days: int = 120) -> pd.DataFrame:
     """
     获取单只股票日线历史数据（多源降级）
-    优先级：东方财富 -> 新浪财经
+    优先级：腾讯财经 -> 东方财富 -> 新浪财经
     :param code: 股票代码，如 '000001'
     :param days: 获取最近 N 天
     :return: DataFrame，含 date/open/high/low/close/volume/turnover
     """
-    # 1. 尝试东方财富
+    # 1. 优先尝试腾讯财经（速度快、限流宽松）
+    df = _get_daily_history_tx(code, days)
+    if not df.empty and len(df) >= 60:
+        return df
+
+    # 2. 降级到东方财富
     df = _get_daily_history_em(code, days)
     if not df.empty and len(df) >= 60:
         return df
 
-    # 2. 降级到新浪财经
+    # 3. 最后降级到新浪财经
     df = _get_daily_history_sina(code, days)
     if not df.empty and len(df) >= 60:
         return df
 
     return pd.DataFrame()
+
+
+def _get_daily_history_tx(code: str, days: int = 120) -> pd.DataFrame:
+    """从腾讯财经获取历史数据。
+    腾讯接口返回 date/open/close/high/low/amount（成交额），缺少 volume/换手率；
+    这里用 amount 近似替代 volume（技术指标只做相对比较，量纲差异不影响 MA 结构）。
+    """
+    # 腾讯需要带市场前缀
+    if code.startswith(("6", "9")):
+        symbol = f"sh{code}"
+    elif code.startswith(("4", "8")):
+        symbol = f"bj{code}"
+    else:
+        symbol = f"sz{code}"
+
+    end = datetime.today().strftime("%Y%m%d")
+    start = (datetime.today() - timedelta(days=days + 30)).strftime("%Y%m%d")
+    try:
+        df = ak.stock_zh_a_hist_tx(
+            symbol=symbol,
+            start_date=start,
+            end_date=end,
+            adjust="qfq",
+        )
+        if df.empty:
+            return pd.DataFrame()
+
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.sort_values("date").tail(days).reset_index(drop=True)
+
+        # 用 amount 近似替代 volume；缺失的字段补齐为 0 以兼容下游 indicators / score_fundamental
+        if "volume" not in df.columns:
+            df["volume"] = df.get("amount", 0)
+        if "turnover" not in df.columns:
+            df["turnover"] = df.get("amount", 0)
+        if "turnover_rate" not in df.columns:
+            df["turnover_rate"] = 0
+        return df
+    except Exception:
+        return pd.DataFrame()
 
 
 def _get_daily_history_em(code: str, days: int = 120) -> pd.DataFrame:
@@ -379,17 +472,23 @@ def get_realtime_quotes(codes: list, max_workers: int = 8) -> pd.DataFrame:
 def get_financial_indicator(code: str) -> dict:
     """
     获取股票基本面财务指标（最新一期）
+    带 24 小时缓存（内存 + 磁盘），避免并发选股时对同一代码重复请求。
     :param code: 股票代码
     :return: dict，含 roe/eps/gross_margin/revenue_growth 等
     """
+    cached = _load_financial_cache(code)
+    if cached is not None:
+        return cached
+
     try:
         # 使用当前年份和前一年，确保获取最新财务数据
         current_year = datetime.now().year
         df = ak.stock_financial_analysis_indicator(symbol=code, start_year=str(current_year - 1))
         if df.empty:
+            _save_financial_cache(code, {})
             return {}
         latest = df.iloc[0]
-        return {
+        data = {
             "roe": _safe_float(latest.get("净资产收益率(%)")),
             "eps": _safe_float(latest.get("加权每股收益(元)")),
             "gross_margin": _safe_float(latest.get("主营业务利润率(%)")),
@@ -399,6 +498,8 @@ def get_financial_indicator(code: str) -> dict:
             "debt_ratio": _safe_float(latest.get("资产负债率(%)")),
             "current_ratio": _safe_float(latest.get("流动比率")),
         }
+        _save_financial_cache(code, data)
+        return data
     except Exception:
         return {}
 

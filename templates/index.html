@@ -590,6 +590,10 @@
                                 <label>情绪面权重</label>
                                 <input type="number" id="sentimentWeight" value="0.2" min="0" max="1" step="0.1">
                             </div>
+                            <div class="control-group">
+                                <label>成交量TopN</label>
+                                <input type="number" id="volumeTopN" value="500" min="0" max="5000" step="100" title="只分析当日成交量市场排名前 N 的股票，0 表示不限制">
+                            </div>
                             <button class="btn btn-primary" onclick="runSelection()">开始选股</button>
                         </div>
                     </div>
@@ -624,6 +628,7 @@
                                 <label style="display:block; margin-bottom:6px; font-size:14px; color:#495057; font-weight:600;">历史数据源</label>
                                 <select id="analyzeHistSource" style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; background:white; cursor:pointer;">
                                     <option value="auto">自动选择</option>
+                                    <option value="tx">腾讯财经</option>
                                     <option value="sina">新浪财经</option>
                                     <option value="em">东方财富</option>
                                 </select>
@@ -1159,6 +1164,7 @@
                 fund_weight: parseFloat(document.getElementById('fundWeight').value),
                 sentiment_weight: parseFloat(document.getElementById('sentimentWeight').value),
                 quote_source: document.getElementById('quoteSource').value,
+                volume_top_n: parseInt(document.getElementById('volumeTopN').value) || 0,
             };
 
             try {

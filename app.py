@@ -40,9 +40,10 @@ def select_stocks():
     tech_weight = params.get("tech_weight", 0.5)
     fund_weight = params.get("fund_weight", 0.3)
     sentiment_weight = params.get("sentiment_weight", 0.2)
-    max_workers = min(int(params.get("max_workers", 8)), 16)
+    max_workers = min(int(params.get("max_workers", 8)), 8)
     enable_sentiment = params.get("enable_sentiment", True)
     quote_source = params.get("quote_source", "auto")
+    volume_top_n = int(params.get("volume_top_n", 500))
 
     try:
         df = run_selection(
@@ -54,6 +55,7 @@ def select_stocks():
             max_workers=max_workers,
             enable_sentiment=enable_sentiment,
             quote_source=quote_source,
+            volume_top_n=volume_top_n,
         )
 
         if df.empty:

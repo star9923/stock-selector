@@ -1,28 +1,35 @@
 """
 selector.py - 智能选股核心逻辑（多线程并发版 + 情绪分析）
 """
+import time
+import traceback
 import pandas as pd
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeout
 from data.data_fetcher import (
     get_stock_list,
-    get_daily_history,
     get_realtime_quotes,
     get_realtime_quotes_from_sina,
     get_realtime_quotes_from_em,
     get_realtime_quotes_from_xueqiu,
     get_financial_indicator,
 )
+from data.stock_data_fallback import get_stock_history_with_fallback
 from core.indicators import add_indicators, score_technical
 from core.fundamental import score_fundamental, filter_basic
 from services.sentiment import score_sentiment, get_sentiment_data
+
+# 单只股票分析超时（秒）：avoid a single slow AkShare call from stalling the whole run
+PER_STOCK_TIMEOUT = 30
+# 整个并发阶段兜底超时（秒）：到时间强制收尾，防止极端长尾永远卡住
+OVERALL_TIMEOUT = 30 * 60
 
 
 def _analyze_single(code, realtime_dict, tech_weight, fund_weight, sentiment_weight, min_score,
                     hot_stocks, board_sentiment, stock_board_map):
     """分析单只股票，返回结果字典或 None（线程安全）"""
     try:
-        hist = get_daily_history(code, days=120)
+        hist = get_stock_history_with_fallback(code, days=120)
         if hist.empty or len(hist) < 60:
             return None
 
@@ -66,7 +73,9 @@ def _analyze_single(code, realtime_dict, tech_weight, fund_weight, sentiment_wei
             "board_name":       sentiment["board_name"],
             "total_score":      round(total, 1),
         }
-    except Exception:
+    except Exception as e:
+        print(f"   ⚠️  分析 {code} 失败: {e.__class__.__name__}: {str(e)[:120]}")
+        traceback.print_exc()
         return None
 
 
@@ -79,6 +88,7 @@ def run_selection(
     max_workers: int = 8,
     enable_sentiment: bool = True,
     quote_source: str = "auto",
+    volume_top_n: int = 500,
 ) -> pd.DataFrame:
     """
     执行智能选股（多线程并发版 + 情绪分析）
@@ -90,6 +100,7 @@ def run_selection(
     :param max_workers: 并发线程数（建议 4~16，过高易触发限流）
     :param enable_sentiment: 是否启用情绪分析（较慢）
     :param quote_source: 数据源选择 (auto/sina/em/xueqiu)
+    :param volume_top_n: 只分析当日成交量市场前 N 只股票（默认500），0 或负数表示不限制
     :return: 选股结果 DataFrame
     """
     print("📋 获取股票列表...")
@@ -132,6 +143,17 @@ def run_selection(
         print(f"⚠️  DataFrame 缺少 'code' 列，当前列: {df_realtime.columns.tolist()}")
         return pd.DataFrame()
 
+    # 只保留当日成交量排名前 volume_top_n 的股票（减少分析耗时）
+    if volume_top_n and volume_top_n > 0 and "volume" in df_realtime.columns:
+        vol_max = pd.to_numeric(df_realtime["volume"], errors="coerce").fillna(0).max()
+        if vol_max > 0:
+            df_realtime = df_realtime.assign(
+                _vol=pd.to_numeric(df_realtime["volume"], errors="coerce").fillna(0)
+            ).sort_values("_vol", ascending=False).head(volume_top_n).drop(columns=["_vol"]).reset_index(drop=True)
+            print(f"🔥 按成交量取前 {volume_top_n} 只，剩余 {len(df_realtime)} 只进入分析")
+        else:
+            print(f"⚠️  行情数据无有效成交量（可能来自雪球），跳过成交量过滤")
+
     filtered_codes = df_realtime["code"].tolist()
     print(f"   过滤后剩余 {len(filtered_codes)} 只股票")
 
@@ -147,6 +169,9 @@ def run_selection(
 
     results = []
     print(f"📊 并发分析股票（{max_workers} 线程）...")
+
+    deadline = time.monotonic() + OVERALL_TIMEOUT
+    stalled = 0
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -166,10 +191,35 @@ def run_selection(
             if code in realtime_map
         }
 
-        for future in tqdm(as_completed(futures), total=len(futures), desc="分析进度"):
-            result = future.result()
-            if result is not None:
-                results.append(result)
+        pending = set(futures.keys())
+        pbar = tqdm(total=len(futures), desc="分析进度")
+        try:
+            for future in as_completed(futures, timeout=OVERALL_TIMEOUT):
+                pending.discard(future)
+                try:
+                    result = future.result(timeout=PER_STOCK_TIMEOUT)
+                except FuturesTimeout:
+                    stalled += 1
+                    future.cancel()
+                    result = None
+                except Exception as e:
+                    print(f"   ⚠️  worker 异常: {e.__class__.__name__}: {str(e)[:120]}")
+                    result = None
+                if result is not None:
+                    results.append(result)
+                pbar.update(1)
+                if time.monotonic() > deadline:
+                    raise FuturesTimeout
+        except FuturesTimeout:
+            # 整体超时：取消剩余任务，继续用已完成结果出数
+            print(f"   ⚠️  并发分析整体超时 ({OVERALL_TIMEOUT}s)，剩余 {len(pending)} 只放弃")
+            for f in pending:
+                f.cancel()
+        finally:
+            pbar.close()
+
+    if stalled:
+        print(f"   ℹ️  单只超时跳过 {stalled} 只")
 
     if not results:
         print("⚠️  没有股票达到最低得分要求")

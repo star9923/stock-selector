@@ -31,8 +31,6 @@ def save_stock_history_cache(code: str, df: pd.DataFrame):
 
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-
-        print(f"   ✅ 股票 {code} 历史数据已保存到缓存")
     except Exception as e:
         print(f"   ⚠️  保存股票缓存失败: {e}")
 
@@ -53,16 +51,14 @@ def load_stock_history_cache(code: str, max_age_days: int = 1) -> pd.DataFrame:
         # 检查缓存时间
         cache_time = datetime.fromisoformat(data['timestamp'])
         if datetime.now() - cache_time > timedelta(days=max_age_days):
-            print(f"   ⚠️  股票缓存已过期 (>{max_age_days}天)")
             return pd.DataFrame()
 
         df = pd.DataFrame(data['data'])
         df['date'] = pd.to_datetime(df['date'])
 
-        print(f"   ℹ️  从缓存加载股票 {code} 历史数据 ({len(df)} 天)")
         return df
     except Exception as e:
-        print(f"   ⚠️  加载股票缓存失败: {e}")
+        print(f"   ⚠️  加载股票缓存失败 {code}: {e}")
         return pd.DataFrame()
 
 
