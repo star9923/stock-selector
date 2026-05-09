@@ -1808,17 +1808,35 @@
                     return;
                 }
                 let html = `<table class="result-table"><thead><tr>
-                    <th>批次</th><th>时间</th><th>备注</th><th>股票数</th><th>平均得分</th><th>操作</th>
+                    <th>批次</th><th>时间</th><th>备注</th><th>股票数</th><th>平均得分</th><th>胜率</th><th>平均涨幅</th><th>操作</th>
                 </tr></thead><tbody>`;
                 for (const r of rows) {
                     const avg = r.avg_score != null ? r.avg_score.toFixed(1) : '--';
                     const note = (r.note || '').replace(/</g, '&lt;');
+
+                    // 胜率和平均涨幅（基于上次查看缓存的价格）
+                    let winCell = '<span style="color:#adb5bd;" title="尚未计算，点击查看">--</span>';
+                    let avgChangeCell = '--';
+                    if (r.win_rate != null && r.evaluated_count > 0) {
+                        const winColor = r.win_rate >= 50 ? '#28a745' : (r.win_rate >= 30 ? '#ffc107' : '#dc3545');
+                        const tip = `截至 ${r.last_priced_at || '?'} | 胜 ${r.win_count}/${r.evaluated_count}`;
+                        winCell = `<span style="color:${winColor}; font-weight:600;" title="${tip}">${r.win_rate.toFixed(1)}%</span>`;
+                    }
+                    if (r.avg_change_pct != null) {
+                        const v = Number(r.avg_change_pct);
+                        const cls = v >= 0 ? 'pct-up' : 'pct-down';
+                        const sign = v >= 0 ? '+' : '';
+                        avgChangeCell = `<span class="${cls}">${sign}${v.toFixed(2)}%</span>`;
+                    }
+
                     html += `<tr>
                         <td>#${r.id}</td>
                         <td>${r.created_at}</td>
                         <td>${note || '—'}</td>
                         <td>${r.count}</td>
                         <td>${avg}</td>
+                        <td>${winCell}</td>
+                        <td>${avgChangeCell}</td>
                         <td>
                             <button class="btn btn-primary" style="padding:4px 12px; margin-right:6px;" onclick="viewSnapshot(${r.id})">查看</button>
                             <button class="btn" style="padding:4px 12px;" onclick="deleteSnapshot(${r.id})">删除</button>
@@ -1881,6 +1899,8 @@
                 }
                 html += '</tbody></table>';
                 box.innerHTML = html;
+                // 详情里刷新了价格，顺带让列表胜率同步（不等待）
+                loadHistoryList();
             } catch (err) {
                 box.innerHTML = `<div class="empty">加载失败: ${err.message}</div>`;
             }

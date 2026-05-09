@@ -152,6 +152,7 @@ def history_detail(sid):
         with ThreadPoolExecutor(max_workers=8) as ex:
             prices = list(ex.map(lambda it: _latest(it["code"]), items))
 
+        updates = []
         for it, cur in zip(items, prices):
             it["current_price"] = cur
             base = it.get("price")
@@ -159,6 +160,14 @@ def history_detail(sid):
                 it["change_pct"] = round((cur - base) / base * 100, 2)
             else:
                 it["change_pct"] = None
+            updates.append({
+                "id": it["id"],
+                "current_price": it["current_price"],
+                "change_pct": it["change_pct"],
+            })
+
+        # 把最新价写回 DB，列表页的胜率基于这份缓存
+        history_service.update_item_prices(updates)
 
         return jsonify({"success": True, "data": snap})
     except Exception as e:
