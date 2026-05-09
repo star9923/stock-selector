@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 exports/
 ai_config.json
+stock_selector.db
+stock_selector.db-journal

@@ -65,10 +65,27 @@ def _save_financial_cache(code: str, data: dict) -> None:
 
 
 def get_stock_list() -> pd.DataFrame:
-    """获取 A 股全部股票列表"""
-    df = ak.stock_info_a_code_name()
-    df.columns = ["code", "name"]
-    return df
+    """
+    获取 A 股全部股票列表。
+    优先使用本地 stock_mapping.json（避免上交所接口限流/拒连），
+    失败时降级到 AkShare 在线接口。
+    """
+    # 1. 优先用本地映射文件
+    if _STOCK_MAPPING:
+        df = pd.DataFrame([
+            {"code": code, "name": name}
+            for code, name in _STOCK_MAPPING.items()
+        ])
+        return df
+
+    # 2. 降级到 AkShare 在线接口
+    try:
+        df = ak.stock_info_a_code_name()
+        df.columns = ["code", "name"]
+        return df
+    except Exception as e:
+        print(f"   ⚠️  获取股票列表失败: {e}")
+        return pd.DataFrame(columns=["code", "name"])
 
 
 def get_daily_history(code: str, days: int = 120) -> pd.DataFrame:

@@ -543,6 +543,10 @@
                     <span class="icon">🔥</span>
                     <span>板块热度</span>
                 </div>
+                <div class="nav-item" onclick="switchTab('history')">
+                    <span class="icon">📜</span>
+                    <span>历史记录</span>
+                </div>
                 <div class="nav-item" onclick="switchTab('settings')">
                     <span class="icon">⚙️</span>
                     <span>系统设置</span>
@@ -603,7 +607,10 @@
                     <div class="results">
                         <div class="results-header">
                             <h2>选股结果</h2>
-                            <div class="timestamp" id="timestamp"></div>
+                            <div style="display:flex; align-items:center; gap:15px;">
+                                <button id="saveSnapshotBtn" class="btn btn-primary" onclick="saveSnapshot()" style="display:none;">💾 保存此次选股</button>
+                                <div class="timestamp" id="timestamp"></div>
+                            </div>
                         </div>
                         <div id="tableContainer">
                             <div class="empty">点击"开始选股"运行分析</div>
@@ -679,6 +686,34 @@
                             </div>
                             <div id="sectorDetailContent"></div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 历史记录页面 -->
+            <div id="historyTab" class="tab-content">
+                <div class="header">
+                    <h2>历史记录</h2>
+                    <p>查看保存的选股批次以及从保存至今的涨跌幅</p>
+                </div>
+                <div class="content-wrapper">
+                    <div class="results" style="margin-bottom: 20px;">
+                        <div class="results-header">
+                            <h3>选股批次</h3>
+                            <button class="btn" onclick="loadHistoryList()" style="padding:6px 14px;">🔄 刷新</button>
+                        </div>
+                        <div id="historyListContainer"><div class="empty">加载中...</div></div>
+                    </div>
+                    <div class="results" id="historyDetailCard" style="display:none;">
+                        <div class="results-header">
+                            <h3 id="historyDetailTitle">批次详情</h3>
+                            <div style="display:flex; gap:10px;">
+                                <button class="btn btn-primary" id="historyRefreshBtn" style="padding:6px 14px;">🔄 刷新收益</button>
+                                <button class="btn" id="historyCloseBtn" style="padding:6px 14px;" onclick="closeHistoryDetail()">关闭</button>
+                            </div>
+                        </div>
+                        <div id="historyDetailMeta" style="padding:10px 0; color:#6c757d; font-size:13px;"></div>
+                        <div id="historyDetailContainer"><div class="empty">加载中...</div></div>
                     </div>
                 </div>
             </div>
@@ -872,7 +907,8 @@
                 'select': { nav: 0, content: 'selectTab' },
                 'analyze': { nav: 1, content: 'analyzeTab' },
                 'sector': { nav: 2, content: 'sectorTab' },
-                'settings': { nav: 3, content: 'settingsTab' }
+                'history': { nav: 3, content: 'historyTab' },
+                'settings': { nav: 4, content: 'settingsTab' }
             };
 
             const selected = tabMap[tab];
@@ -883,6 +919,9 @@
                     refreshCacheInfo();
                     loadDataSourceSetting();
                     loadAiConfig();
+                }
+                if (tab === 'history') {
+                    loadHistoryList();
                 }
             }
         }
@@ -1180,9 +1219,11 @@
                     showStatus(`✅ 选股完成，共找到 ${result.count} 只股票`, 'success');
                     document.getElementById('timestamp').textContent = `更新时间: ${result.timestamp}`;
                     renderTable(result.data);
+                    document.getElementById('saveSnapshotBtn').style.display = '';
                 } else {
                     showStatus(`❌ ${result.message}`, 'error');
                     document.getElementById('tableContainer').innerHTML = `<div class="empty">${result.message}</div>`;
+                    document.getElementById('saveSnapshotBtn').style.display = 'none';
                 }
             } catch (err) {
                 showStatus(`❌ 请求失败: ${err.message}`, 'error');
@@ -1201,6 +1242,7 @@
                 if (result.success) {
                     document.getElementById('timestamp').textContent = `更新时间: ${result.timestamp}`;
                     renderTable(result.data);
+                    document.getElementById('saveSnapshotBtn').style.display = '';
                 }
             } catch (err) {
                 console.log('无缓存数据');
@@ -1689,6 +1731,174 @@
                 }
             } catch (err) {
                 showSettingsStatus(`❌ 请求失败: ${err.message}`, 'error');
+            }
+        }
+
+        // ========== 历史记录功能 ==========
+
+        let currentSnapshotId = null;
+
+        async function saveSnapshot() {
+            // 用自定义输入框替代 prompt()（某些浏览器不支持 prompt）
+            const noteInput = document.createElement('div');
+            noteInput.innerHTML = `
+                <div style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9999; display:flex; align-items:center; justify-content:center;" id="noteModal">
+                    <div style="background:white; padding:30px; border-radius:12px; box-shadow:0 4px 20px rgba(0,0,0,0.3); max-width:400px; width:90%;">
+                        <h3 style="margin:0 0 15px 0; color:#212529;">保存选股结果</h3>
+                        <input type="text" id="noteInputField" placeholder="给这次选股加个备注（可选）" style="width:100%; padding:10px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; margin-bottom:20px;">
+                        <div style="display:flex; gap:10px; justify-content:flex-end;">
+                            <button onclick="document.getElementById('noteModal').remove()" class="btn" style="padding:8px 20px;">取消</button>
+                            <button onclick="confirmSaveSnapshot()" class="btn btn-primary" style="padding:8px 20px;">确定</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(noteInput);
+            document.getElementById('noteInputField').focus();
+            // 回车键确认
+            document.getElementById('noteInputField').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') confirmSaveSnapshot();
+            });
+        }
+
+        async function confirmSaveSnapshot() {
+            const modal = document.getElementById('noteModal');
+            const note = document.getElementById('noteInputField').value.trim();
+            modal.remove();
+
+            const btn = document.getElementById('saveSnapshotBtn');
+            btn.disabled = true;
+            try {
+                const res = await fetch('/api/history/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    showStatus(`✅ 已保存（批次#${result.snapshot_id}，${result.count}只股票）`, 'success');
+                } else {
+                    showStatus(`❌ ${result.message || '保存失败'}`, 'error');
+                }
+            } catch (err) {
+                showStatus(`❌ 保存失败: ${err.message}`, 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function loadHistoryList() {
+            const box = document.getElementById('historyListContainer');
+            box.innerHTML = '<div class="empty">加载中...</div>';
+            try {
+                const res = await fetch('/api/history/list');
+                const result = await res.json();
+                if (!result.success) {
+                    box.innerHTML = `<div class="empty">${result.message || '加载失败'}</div>`;
+                    return;
+                }
+                const rows = result.data || [];
+                if (!rows.length) {
+                    box.innerHTML = '<div class="empty">暂无历史记录，去选股页点击"💾 保存此次选股"</div>';
+                    return;
+                }
+                let html = `<table class="result-table"><thead><tr>
+                    <th>批次</th><th>时间</th><th>备注</th><th>股票数</th><th>平均得分</th><th>操作</th>
+                </tr></thead><tbody>`;
+                for (const r of rows) {
+                    const avg = r.avg_score != null ? r.avg_score.toFixed(1) : '--';
+                    const note = (r.note || '').replace(/</g, '&lt;');
+                    html += `<tr>
+                        <td>#${r.id}</td>
+                        <td>${r.created_at}</td>
+                        <td>${note || '—'}</td>
+                        <td>${r.count}</td>
+                        <td>${avg}</td>
+                        <td>
+                            <button class="btn btn-primary" style="padding:4px 12px; margin-right:6px;" onclick="viewSnapshot(${r.id})">查看</button>
+                            <button class="btn" style="padding:4px 12px;" onclick="deleteSnapshot(${r.id})">删除</button>
+                        </td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+                box.innerHTML = html;
+            } catch (err) {
+                box.innerHTML = `<div class="empty">加载失败: ${err.message}</div>`;
+            }
+        }
+
+        async function viewSnapshot(sid) {
+            currentSnapshotId = sid;
+            const card = document.getElementById('historyDetailCard');
+            const title = document.getElementById('historyDetailTitle');
+            const meta = document.getElementById('historyDetailMeta');
+            const box = document.getElementById('historyDetailContainer');
+            card.style.display = '';
+            title.textContent = `批次详情 #${sid}`;
+            meta.textContent = '';
+            box.innerHTML = '<div class="empty">正在拉取当前价...</div>';
+            document.getElementById('historyRefreshBtn').onclick = () => viewSnapshot(sid);
+            try {
+                const res = await fetch(`/api/history/${sid}`);
+                const result = await res.json();
+                if (!result.success) {
+                    box.innerHTML = `<div class="empty">${result.message || '加载失败'}</div>`;
+                    return;
+                }
+                const snap = result.data;
+                meta.textContent = `保存时间: ${snap.created_at} | 备注: ${snap.note || '—'} | 股票数: ${snap.count}`;
+                const items = snap.items || [];
+                if (!items.length) {
+                    box.innerHTML = '<div class="empty">此批次无数据</div>';
+                    return;
+                }
+                let html = `<table class="result-table"><thead><tr>
+                    <th>代码</th><th>名称</th><th>入选价</th><th>当前价</th><th>涨跌幅</th><th>总分</th><th>技术</th><th>基本面</th><th>情绪</th>
+                </tr></thead><tbody>`;
+                for (const it of items) {
+                    const basePrice = it.price != null ? Number(it.price).toFixed(2) : '--';
+                    const curPrice = it.current_price != null ? Number(it.current_price).toFixed(2) : '--';
+                    let changeCell = '--';
+                    if (it.change_pct != null) {
+                        changeCell = formatPctChange(it.change_pct);
+                    }
+                    html += `<tr>
+                        <td>${it.code}</td>
+                        <td>${it.name || '—'}</td>
+                        <td>${basePrice}</td>
+                        <td>${curPrice}</td>
+                        <td>${changeCell}</td>
+                        <td>${it.total_score != null ? it.total_score.toFixed(1) : '--'}</td>
+                        <td>${it.tech_score != null ? it.tech_score.toFixed(1) : '--'}</td>
+                        <td>${it.fund_score != null ? it.fund_score.toFixed(1) : '--'}</td>
+                        <td>${it.sentiment_score != null ? it.sentiment_score.toFixed(1) : '--'}</td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+                box.innerHTML = html;
+            } catch (err) {
+                box.innerHTML = `<div class="empty">加载失败: ${err.message}</div>`;
+            }
+        }
+
+        function closeHistoryDetail() {
+            document.getElementById('historyDetailCard').style.display = 'none';
+            currentSnapshotId = null;
+        }
+
+        async function deleteSnapshot(sid) {
+            if (!confirm(`确定删除批次 #${sid} 吗？此操作不可恢复。`)) return;
+            try {
+                const res = await fetch(`/api/history/${sid}`, { method: 'DELETE' });
+                const result = await res.json();
+                if (result.success) {
+                    if (currentSnapshotId === sid) closeHistoryDetail();
+                    loadHistoryList();
+                } else {
+                    alert(result.message || '删除失败');
+                }
+            } catch (err) {
+                alert('删除失败: ' + err.message);
             }
         }
     </script>
