@@ -1105,6 +1105,10 @@
                             </button>
                         </div>
                     </div>
+                    <div style="margin-bottom: 15px;">
+                        <textarea id="aiUserContext" rows="3" placeholder="补充信息（可选）：如行业背景、你关注的要点、已知的订单/合同信息等，AI 会结合这些上下文一起分析"
+                            style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; resize:vertical; font-family:inherit;"></textarea>
+                    </div>
                     <div id="aiAnalysisResult" style="display: none;">
                         <div id="aiAnalysisContent" class="ai-analysis-content"></div>
                     </div>
@@ -1524,10 +1528,11 @@
 
             try {
                 const histSource = document.getElementById('analyzeHistSource').value;
+                const userContext = (document.getElementById('aiUserContext')?.value || '').trim();
                 const res = await fetch(`/api/ai-analyze/${code}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ hist_source: histSource })
+                    body: JSON.stringify({ hist_source: histSource, user_context: userContext })
                 });
 
                 const result = await res.json();

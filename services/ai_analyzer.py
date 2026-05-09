@@ -11,6 +11,14 @@ from datetime import datetime, timedelta
 
 
 AI_CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.cache', 'ai_config.json')
+PROMPT_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'prompts')
+
+
+def _load_prompt_template(name: str = "stock_analysis") -> str:
+    """加载 prompt 模板文件。"""
+    path = os.path.join(PROMPT_DIR, f"{name}.txt")
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
 
 def load_ai_config() -> dict:
@@ -83,10 +91,11 @@ def get_stock_news(code: str, max_count: int = 30) -> list:
         return []
 
 
-def analyze_with_ai(stock_data: dict) -> str:
+def analyze_with_ai(stock_data: dict, user_context: str = "") -> str:
     """
     使用 Claude 对股票技术指标进行智能分析
     :param stock_data: 股票分析数据（来自 analyze_stock）
+    :param user_context: 用户补充的上下文信息
     :return: AI 分析文本
     """
     client = get_client()
@@ -118,10 +127,10 @@ def analyze_with_ai(stock_data: dict) -> str:
         news_text = "- 暂无近期新闻\n"
 
     # 构建股吧信息文本
-    guba_text = ""
+    guba_section = ""
     guba_info = sentiment.get("guba_info", {})
     if guba_info:
-        guba_text = f"""## 股吧热度
+        guba_section = f"""## 股吧热度
 - 关注指数: {guba_info.get('attention_index', 0):.1f}/100
 - 综合得分: {guba_info.get('comprehensive_score', 0):.1f}/100
 - 机构参与度: {guba_info.get('institution_participation', 0):.1f}%
@@ -130,61 +139,55 @@ def analyze_with_ai(stock_data: dict) -> str:
 
 """
 
-    prompt = f"""请对以下股票进行综合深度分析，结合技术指标、近期新闻和股吧热度，给出买入/持有/卖出建议。
+    # 构建用户补充上下文
+    user_context_section = ""
+    if user_context and user_context.strip():
+        user_context_section = f"""## 用户补充信息
+{user_context.strip()}
 
-## 股票信息
-- 代码: {code}
-- 名称: {name}
-- 当前价格: {basic.get('price', 0)}
-- 涨跌幅: {basic.get('pct_change', 0):.2f}%
-- 52周最高: {basic.get('high_52w', 0)}
-- 52周最低: {basic.get('low_52w', 0)}
-
-## 技术指标
-- 技术得分: {tech.get('score', {}).get('total', 0)}/100
-  - 趋势: {tech.get('score', {}).get('trend', 0)} | 动量: {tech.get('score', {}).get('momentum', 0)} | 量能: {tech.get('score', {}).get('volume', 0)}
-- MA5: {tech.get('ma5', 0):.2f} | MA10: {tech.get('ma10', 0):.2f} | MA20: {tech.get('ma20', 0):.2f} | MA60: {tech.get('ma60', 0):.2f}
-- MACD: DIF={tech.get('macd_dif', 0):.4f}, DEA={tech.get('macd_dea', 0):.4f}, BAR={tech.get('macd_bar', 0):.4f}
-- RSI(14): {tech.get('rsi', 0):.2f}
-- KDJ: K={tech.get('kdj_k', 0):.2f}, D={tech.get('kdj_d', 0):.2f}, J={tech.get('kdj_j', 0):.2f}
-- 布林带: 上轨={tech.get('boll_upper', 0):.2f}, 中轨={tech.get('boll_mid', 0):.2f}, 下轨={tech.get('boll_lower', 0):.2f}
-
-## 基本面
-- 基本面得分: {fund.get('score', {}).get('total', 0)}/100
-- ROE: {fund.get('roe', 0)}%
-- EPS: {fund.get('eps', 0)}
-- 毛利率: {fund.get('gross_margin', 0)}%
-
-## 市场情绪
-- 情绪得分: {sentiment.get('score', 0)}/80
-- 热度得分: {sentiment.get('hot_score', 0)}/30
-- 板块得分: {sentiment.get('board_score', 0)}/30
-- 股吧得分: {sentiment.get('guba_score', 0)}/20
-- 所属板块: {sentiment.get('board_name', '未知')}
-
-{guba_text}## 交易信号
-{signals_text}
-
-## 近3个月新闻动态
-{news_text}
-
-请从以下几个维度进行分析：
-1. **趋势分析**：根据均线系统判断当前趋势
-2. **动量分析**：根据 MACD、RSI、KDJ 判断动量强弱
-3. **支撑压力**：根据布林带和关键价位判断支撑压力
-4. **量价关系**：分析成交量与价格的配合情况
-5. **新闻面分析**：结合近期新闻评估对股价的潜在影响（利好/利空/中性）
-6. **股吧热度分析**：根据关注指数、综合得分、机构参与度等评估市场关注度和资金流向
-7. **综合建议**：综合技术面、新闻面和市场情绪，给出明确的操作建议（买入/持有/卖出）和理由
-
-注意：
-- 请用中文回答
-- 分析要专业但易懂
-- 给出具体的支撑位和压力位
-- 新闻面分析要客观，区分短期影响和长期影响
-- 股吧热度可以反映散户情绪和市场关注度
-- 风险提示不可少
 """
+
+    # 加载模板并填充变量
+    template = _load_prompt_template("stock_analysis")
+    prompt = template.format(
+        code=code,
+        name=name,
+        price=basic.get('price', 0),
+        pct_change=f"{basic.get('pct_change', 0):.2f}",
+        high_52w=basic.get('high_52w', 0),
+        low_52w=basic.get('low_52w', 0),
+        tech_total=tech.get('score', {}).get('total', 0),
+        tech_trend=tech.get('score', {}).get('trend', 0),
+        tech_momentum=tech.get('score', {}).get('momentum', 0),
+        tech_volume=tech.get('score', {}).get('volume', 0),
+        ma5=f"{tech.get('ma5', 0):.2f}",
+        ma10=f"{tech.get('ma10', 0):.2f}",
+        ma20=f"{tech.get('ma20', 0):.2f}",
+        ma60=f"{tech.get('ma60', 0):.2f}",
+        macd_dif=f"{tech.get('macd_dif', 0):.4f}",
+        macd_dea=f"{tech.get('macd_dea', 0):.4f}",
+        macd_bar=f"{tech.get('macd_bar', 0):.4f}",
+        rsi=f"{tech.get('rsi', 0):.2f}",
+        kdj_k=f"{tech.get('kdj_k', 0):.2f}",
+        kdj_d=f"{tech.get('kdj_d', 0):.2f}",
+        kdj_j=f"{tech.get('kdj_j', 0):.2f}",
+        boll_upper=f"{tech.get('boll_upper', 0):.2f}",
+        boll_mid=f"{tech.get('boll_mid', 0):.2f}",
+        boll_lower=f"{tech.get('boll_lower', 0):.2f}",
+        fund_total=fund.get('score', {}).get('total', 0),
+        roe=fund.get('roe', 0),
+        eps=fund.get('eps', 0),
+        gross_margin=fund.get('gross_margin', 0),
+        sentiment_score=sentiment.get('score', 0),
+        hot_score=sentiment.get('hot_score', 0),
+        board_score=sentiment.get('board_score', 0),
+        guba_score=sentiment.get('guba_score', 0),
+        board_name=sentiment.get('board_name', '未知'),
+        guba_section=guba_section,
+        signals_text=signals_text,
+        news_text=news_text,
+        user_context_section=user_context_section,
+    )
 
     try:
         config = load_ai_config()

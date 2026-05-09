@@ -196,13 +196,14 @@ def ai_analyze(code):
 
         # 先获取股票数据
         hist_source = request.json.get("hist_source", "auto") if request.json else "auto"
+        user_context = request.json.get("user_context", "") if request.json else ""
         stock_data = analyze_stock(code, hist_source=hist_source)
 
         if not stock_data.get("success"):
             return jsonify({"success": False, "error": stock_data.get("error", "获取股票数据失败")})
 
         # 调用 AI 分析
-        ai_result = analyze_with_ai(stock_data)
+        ai_result = analyze_with_ai(stock_data, user_context=user_context)
 
         return jsonify({
             "success": True,
