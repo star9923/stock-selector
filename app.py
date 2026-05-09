@@ -13,7 +13,9 @@ from services.export_service import (
     export_stock_selection, export_stock_analysis, export_sector_analysis,
     get_export_files, delete_export_file, clean_old_exports
 )
-from data.data_fetcher import _STOCK_MAPPING
+from services import history_service
+from data.data_fetcher import _STOCK_MAPPING, get_daily_history
+from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 from datetime import datetime
 import os
@@ -40,9 +42,10 @@ def select_stocks():
     tech_weight = params.get("tech_weight", 0.5)
     fund_weight = params.get("fund_weight", 0.3)
     sentiment_weight = params.get("sentiment_weight", 0.2)
-    max_workers = min(int(params.get("max_workers", 8)), 16)
+    max_workers = min(int(params.get("max_workers", 8)), 8)
     enable_sentiment = params.get("enable_sentiment", True)
     quote_source = params.get("quote_source", "auto")
+    volume_top_n = int(params.get("volume_top_n", 500))
 
     try:
         df = run_selection(
@@ -54,6 +57,7 @@ def select_stocks():
             max_workers=max_workers,
             enable_sentiment=enable_sentiment,
             quote_source=quote_source,
+            volume_top_n=volume_top_n,
         )
 
         if df.empty:
@@ -97,6 +101,80 @@ def get_cache():
         "timestamp": cache["timestamp"],
         "count": len(cache["data"]),
     })
+
+
+@app.route("/api/history/save", methods=["POST"])
+def history_save():
+    """保存当前选股结果到数据库。"""
+    if not cache.get("data"):
+        return jsonify({"success": False, "message": "没有可保存的选股结果，请先执行选股"})
+    try:
+        body = request.json or {}
+        note = (body.get("note") or "").strip()
+        sid = history_service.save_snapshot(
+            items=cache["data"],
+            params=cache.get("params") or {},
+            note=note,
+        )
+        return jsonify({"success": True, "snapshot_id": sid, "count": len(cache["data"])})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"保存失败: {e}"})
+
+
+@app.route("/api/history/list", methods=["GET"])
+def history_list():
+    """列出所有历史快照。"""
+    try:
+        return jsonify({"success": True, "data": history_service.list_snapshots()})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/api/history/<int:sid>", methods=["GET"])
+def history_detail(sid):
+    """取快照详情并按需计算当前收益。"""
+    try:
+        snap = history_service.get_snapshot(sid)
+        if not snap:
+            return jsonify({"success": False, "message": "快照不存在"}), 404
+
+        items = snap["items"]
+
+        def _latest(code: str):
+            try:
+                df = get_daily_history(code, days=5)
+                if df.empty:
+                    return None
+                return float(df.iloc[-1]["close"])
+            except Exception:
+                return None
+
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            prices = list(ex.map(lambda it: _latest(it["code"]), items))
+
+        for it, cur in zip(items, prices):
+            it["current_price"] = cur
+            base = it.get("price")
+            if cur is not None and base and base > 0:
+                it["change_pct"] = round((cur - base) / base * 100, 2)
+            else:
+                it["change_pct"] = None
+
+        return jsonify({"success": True, "data": snap})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/api/history/<int:sid>", methods=["DELETE"])
+def history_delete(sid):
+    """删除快照。"""
+    try:
+        ok = history_service.delete_snapshot(sid)
+        if not ok:
+            return jsonify({"success": False, "message": "快照不存在"}), 404
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)})
 
 
 @app.route("/api/analyze/<code>", methods=["GET"])
@@ -524,7 +602,8 @@ def clear_cache():
 
 
 if __name__ == "__main__":
-    # 启动时清理7天前的导出文件
+    # 启动时初始化数据库 + 清理7天前的导出文件
+    history_service.init_db()
     clean_old_exports(days=7)
 
     print("\n" + "="*60)
