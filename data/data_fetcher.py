@@ -64,6 +64,88 @@ def _save_financial_cache(code: str, data: dict) -> None:
         pass
 
 
+# ============ 流通市值缓存（全市场单文件，24h TTL） ============
+_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".cache")
+_FLOAT_CAP_FILE = os.path.join(_CACHE_DIR, "float_cap.json")
+_FLOAT_CAP_TTL = timedelta(hours=24)
+_float_cap_mem: dict = {}   # {"ts": datetime, "data": {code: float_cap}}
+_float_cap_lock = threading.Lock()
+
+
+def _load_float_cap_cache() -> dict:
+    """读缓存：返回 {code: float_cap}；过期或缺失返回 {}。"""
+    with _float_cap_lock:
+        entry = _float_cap_mem.get("entry")
+    if entry and datetime.now() - entry["ts"] <= _FLOAT_CAP_TTL:
+        return entry["data"]
+
+    if not os.path.exists(_FLOAT_CAP_FILE):
+        return {}
+    try:
+        with open(_FLOAT_CAP_FILE, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        ts = datetime.fromisoformat(payload["timestamp"])
+        if datetime.now() - ts > _FLOAT_CAP_TTL:
+            return {}
+        data = payload.get("data") or {}
+        with _float_cap_lock:
+            _float_cap_mem["entry"] = {"ts": ts, "data": data}
+        return data
+    except Exception:
+        return {}
+
+
+def save_float_cap_cache(code_to_cap: dict) -> None:
+    """增量合并保存流通市值：code -> float_cap（单位:元）。空值不覆盖已有值。"""
+    if not code_to_cap:
+        return
+    # 读已有缓存做合并（保留 T-1 数据，避免本次数据源缺失某些股票时被覆盖）
+    existing = _load_float_cap_cache()
+    merged = dict(existing)
+    for code, cap in code_to_cap.items():
+        try:
+            v = float(cap)
+            if v > 0:
+                merged[code] = v
+        except (TypeError, ValueError):
+            continue
+
+    now = datetime.now()
+    with _float_cap_lock:
+        _float_cap_mem["entry"] = {"ts": now, "data": merged}
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        with open(_FLOAT_CAP_FILE, "w", encoding="utf-8") as f:
+            json.dump({"timestamp": now.isoformat(), "data": merged}, f, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def fill_float_cap_from_cache(df: pd.DataFrame) -> pd.DataFrame:
+    """把 df 里 float_cap 为 0/缺失的行，用缓存回填（T-1 数据）。
+    原地修改返回；无缓存或无 code 列时直接返回原 df。
+    """
+    if df is None or df.empty or "code" not in df.columns:
+        return df
+    cache = _load_float_cap_cache()
+    if not cache:
+        return df
+    if "float_cap" not in df.columns:
+        df["float_cap"] = 0
+    fc = pd.to_numeric(df["float_cap"], errors="coerce").fillna(0)
+    mask = fc <= 0
+    if not mask.any():
+        return df
+    # 按 code 查缓存
+    filled = df.loc[mask, "code"].map(lambda c: cache.get(c, 0)).astype(float)
+    df.loc[mask, "float_cap"] = filled.values
+    hit = int((filled > 0).sum())
+    if hit > 0:
+        print(f"   ℹ️  流通市值缓存回填: {hit}/{int(mask.sum())} 只命中 T-1 缓存")
+    return df
+# ============ 流通市值缓存结束 ============
+
+
 def get_stock_list() -> pd.DataFrame:
     """
     获取 A 股全部股票列表。
@@ -392,6 +474,11 @@ def get_realtime_quotes_from_sina() -> pd.DataFrame:
             # 过滤掉无效数据
             df = df[df['code'].notna()]
             df = df[df['code'].str.len() == 6]  # 只保留6位代码
+
+            # 把 float_cap 写入全市场缓存，供其他数据源（雪球/东财）切换时回填
+            if "float_cap" in df.columns:
+                cap_map = dict(zip(df["code"].astype(str), pd.to_numeric(df["float_cap"], errors="coerce").fillna(0)))
+                save_float_cap_cache(cap_map)
 
             print(f"   ✅ 新浪财经: 获取到 {len(df)} 只股票")
             return df

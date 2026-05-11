@@ -14,7 +14,7 @@ from services.export_service import (
     get_export_files, delete_export_file, clean_old_exports
 )
 from services import history_service
-from data.data_fetcher import _STOCK_MAPPING, get_daily_history
+from data.data_fetcher import _STOCK_MAPPING, get_realtime_quotes
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 from datetime import datetime
@@ -140,20 +140,19 @@ def history_detail(sid):
 
         items = snap["items"]
 
-        def _latest(code: str):
-            try:
-                df = get_daily_history(code, days=5)
-                if df.empty:
-                    return None
-                return float(df.iloc[-1]["close"])
-            except Exception:
-                return None
+        # 批量拉取实时行情（盘中实时价，而非历史收盘价）
+        codes = [it["code"] for it in items]
+        df_realtime = get_realtime_quotes(codes)
 
-        with ThreadPoolExecutor(max_workers=8) as ex:
-            prices = list(ex.map(lambda it: _latest(it["code"]), items))
+        # 构建 code -> price 映射
+        price_map = {}
+        if not df_realtime.empty:
+            for _, row in df_realtime.iterrows():
+                price_map[row["code"]] = float(row["price"]) if row.get("price") else None
 
         updates = []
-        for it, cur in zip(items, prices):
+        for it in items:
+            cur = price_map.get(it["code"])
             it["current_price"] = cur
             base = it.get("price")
             if cur is not None and base and base > 0:
