@@ -13,7 +13,6 @@ from data.data_fetcher import (
     get_realtime_quotes_from_em,
     get_realtime_quotes_from_xueqiu,
     get_financial_indicator,
-    fill_float_cap_from_cache,
 )
 from data.stock_data_fallback import get_stock_history_with_fallback
 from core.indicators import add_indicators, score_technical
@@ -101,7 +100,7 @@ def run_selection(
     :param max_workers: 并发线程数（建议 4~16，过高易触发限流）
     :param enable_sentiment: 是否启用情绪分析（较慢）
     :param quote_source: 数据源选择 (auto/sina/em/xueqiu)
-    :param volume_top_n: 按"成交量/流通市值"活跃度排名，只分析前 N 只（默认500），0 或负数表示不限制
+    :param volume_top_n: 只分析当日成交量市场前 N 只股票（默认500），0 或负数表示不限制
     :return: 选股结果 DataFrame
     """
     print("📋 获取股票列表...")
@@ -144,24 +143,18 @@ def run_selection(
         print(f"⚠️  DataFrame 缺少 'code' 列，当前列: {df_realtime.columns.tolist()}")
         return pd.DataFrame()
 
-    # 只保留当日 活跃度（成交量/流通市值）排名前 volume_top_n 的股票（减少分析耗时）
-    if volume_top_n and volume_top_n > 0 and "volume" in df_realtime.columns and "float_cap" in df_realtime.columns:
-        # 先用 24h 缓存回填雪球/东财兜底为 0 的流通市值
-        df_realtime = fill_float_cap_from_cache(df_realtime)
-
+    # 只保留当日成交量排名前 volume_top_n 的股票（减少分析耗时）
+    if volume_top_n and volume_top_n > 0 and "volume" in df_realtime.columns:
         vol = pd.to_numeric(df_realtime["volume"], errors="coerce").fillna(0)
-        cap = pd.to_numeric(df_realtime["float_cap"], errors="coerce").fillna(0)
-        # 活跃度 = volume / float_cap；流通市值无效的股票置为 -1，排到最后
-        activity = (vol / cap.where(cap > 0)).fillna(-1)
-        if (activity > 0).any():
-            df_realtime = df_realtime.assign(_activity=activity) \
-                .sort_values("_activity", ascending=False) \
+        if (vol > 0).any():
+            df_realtime = df_realtime.assign(_vol=vol) \
+                .sort_values("_vol", ascending=False) \
                 .head(volume_top_n) \
-                .drop(columns=["_activity"]) \
+                .drop(columns=["_vol"]) \
                 .reset_index(drop=True)
-            print(f"🔥 按 成交量/流通市值 取前 {volume_top_n} 只，剩余 {len(df_realtime)} 只进入分析")
+            print(f"🔥 按成交量取前 {volume_top_n} 只，剩余 {len(df_realtime)} 只进入分析")
         else:
-            print(f"⚠️  流通市值数据不可用（缓存也为空），跳过活跃度过滤")
+            print(f"⚠️  行情数据无有效成交量，跳过过滤")
 
     filtered_codes = df_realtime["code"].tolist()
     print(f"   过滤后剩余 {len(filtered_codes)} 只股票")

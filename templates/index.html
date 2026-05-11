@@ -595,8 +595,8 @@
                                 <input type="number" id="sentimentWeight" value="0.2" min="0" max="1" step="0.1">
                             </div>
                             <div class="control-group">
-                                <label>成交量/流通市值 TopN</label>
-                                <input type="number" id="volumeTopN" value="500" min="0" max="5000" step="100" title="按 成交量/流通市值（活跃度）排序，只分析前 N 只股票；0 表示不限制">
+                                <label>成交量TopN</label>
+                                <input type="number" id="volumeTopN" value="500" min="0" max="5000" step="100" title="只分析当日成交量市场排名前 N 的股票，0 表示不限制">
                             </div>
                             <button class="btn btn-primary" onclick="runSelection()">开始选股</button>
                         </div>

@@ -143,6 +143,128 @@ def fill_float_cap_from_cache(df: pd.DataFrame) -> pd.DataFrame:
     if hit > 0:
         print(f"   ℹ️  流通市值缓存回填: {hit}/{int(mask.sum())} 只命中 T-1 缓存")
     return df
+def fetch_all_float_cap(codes: list = None, max_workers: int = 4, progress_cb=None) -> dict:
+    """
+    全市场刷新流通市值缓存。
+    直接调用东方财富全市场列表接口（82.push2.eastmoney.com），分页拉取，
+    单次返回 100 行，含 f21=流通市值（单位元）。
+    :param codes: 仅在用作过滤时有效；None 表示拉全市场
+    :param max_workers: 分页并发数（默认 4）
+    :param progress_cb: 进度回调 fn(done, total, success)
+    :return: 拉取统计 {"total":, "success":, "failed":, "elapsed":}
+    """
+    import time as _time
+    import requests as _requests
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    PAGE_SIZE = 100
+    URL = "https://82.push2.eastmoney.com/api/qt/clist/get"
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://quote.eastmoney.com/",
+    }
+    BASE_PARAMS = {
+        "pz": PAGE_SIZE, "po": 1, "np": 1, "fltt": 2, "invt": 2,
+        "fid": "f3",
+        # 沪深京全市场：主板/创业板/科创板/北交所
+        "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048",
+        "fields": "f12,f21",  # 只要代码和流通市值
+    }
+
+    t0 = _time.time()
+
+    # 东财接口不走代理；虽然 akshare_config 已清环境变量，这里再显式关一道更稳
+    _session = _requests.Session()
+    _session.trust_env = False
+
+    def _fetch_page(pn: int, retries: int = 2):
+        last_err = None
+        for attempt in range(retries + 1):
+            try:
+                params = dict(BASE_PARAMS); params["pn"] = pn
+                r = _session.get(URL, params=params, timeout=15, headers=HEADERS)
+                r.raise_for_status()
+                data = r.json().get("data") or {}
+                return data.get("total", 0), data.get("diff") or []
+            except Exception as e:
+                last_err = e
+                if attempt < retries:
+                    _time.sleep(1.0 * (attempt + 1))
+        return 0, []
+
+    # 先拿首页，知道总数
+    total, first_rows = _fetch_page(1)
+    if total == 0:
+        return {"total": 0, "success": 0, "failed": 0, "elapsed": round(_time.time() - t0, 1)}
+
+    pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+    result: dict = {}
+
+    # 先吃下首页
+    for row in first_rows:
+        code = str(row.get("f12") or "")
+        cap = row.get("f21")
+        if code and isinstance(cap, (int, float)) and cap > 0:
+            result[code] = float(cap)
+
+    if progress_cb:
+        progress_cb(min(PAGE_SIZE, total), total, len(result))
+
+    # 并发后续页
+    if pages > 1:
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(_fetch_page, pn): pn for pn in range(2, pages + 1)}
+            done = min(PAGE_SIZE, total)
+            for fut in as_completed(futures):
+                _, rows = fut.result()
+                for row in rows:
+                    code = str(row.get("f12") or "")
+                    cap = row.get("f21")
+                    if code and isinstance(cap, (int, float)) and cap > 0:
+                        result[code] = float(cap)
+                done = min(done + PAGE_SIZE, total)
+                if progress_cb:
+                    progress_cb(done, total, len(result))
+
+    # 可选：用 codes 过滤
+    if codes:
+        codes_set = set(codes)
+        result = {c: v for c, v in result.items() if c in codes_set}
+
+    save_float_cap_cache(result)
+
+    return {
+        "total": total,
+        "success": len(result),
+        "failed": max(0, total - len(result)),
+        "elapsed": round(_time.time() - t0, 1),
+    }
+
+
+def get_float_cap_status() -> dict:
+    """返回缓存状态，供前端展示。"""
+    cache = _load_float_cap_cache()
+    if not cache:
+        # 缓存可能过期或不存在，读文件 timestamp 看是否过期
+        if os.path.exists(_FLOAT_CAP_FILE):
+            try:
+                with open(_FLOAT_CAP_FILE, "r", encoding="utf-8") as f:
+                    payload = json.load(f)
+                ts = payload.get("timestamp")
+                count = len(payload.get("data") or {})
+                return {"count": count, "updated_at": ts, "expired": True}
+            except Exception:
+                pass
+        return {"count": 0, "updated_at": None, "expired": True}
+    # 缓存内存命中，从 mem 拿时间
+    with _float_cap_lock:
+        entry = _float_cap_mem.get("entry") or {}
+    ts = entry.get("ts")
+    return {
+        "count": len(cache),
+        "updated_at": ts.isoformat(timespec="seconds") if ts else None,
+        "expired": False,
+    }
 # ============ 流通市值缓存结束 ============
 
 
