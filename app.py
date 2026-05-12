@@ -4,7 +4,8 @@ app.py - Flask Web 服务（单线程稳定版）
 from dotenv import load_dotenv
 load_dotenv()
 
-from flask import Flask, render_template, jsonify, request, send_file
+from flask import Flask, render_template, jsonify, request, send_file, Response
+from urllib.parse import quote
 from flask_cors import CORS
 from core.selector import run_selection
 from services.stock_analyzer import analyze_stock
@@ -20,6 +21,8 @@ import pandas as pd
 from datetime import datetime
 import os
 import json
+import io
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -183,6 +186,53 @@ def history_delete(sid):
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
+
+
+@app.route("/api/history/<int:sid>/export", methods=["GET"])
+def history_export(sid):
+    """导出快照为 CSV，文件名使用备注。"""
+    snap = history_service.get_snapshot(sid)
+    if not snap:
+        return jsonify({"success": False, "message": "快照不存在"}), 404
+
+    items = snap.get("items") or []
+    columns = [
+        ("code", "代码"),
+        ("name", "名称"),
+        ("price", "入选价"),
+        ("current_price", "当前价"),
+        ("change_pct", "涨跌幅(%)"),
+        ("total_score", "总分"),
+        ("tech_score", "技术分"),
+        ("fund_score", "基本面分"),
+        ("sentiment_score", "情绪分"),
+        ("pe", "PE"),
+        ("pb", "PB"),
+        ("price_updated_at", "价格更新时间"),
+    ]
+    df = pd.DataFrame(
+        [{label: it.get(key) for key, label in columns} for it in items],
+        columns=[label for _, label in columns],
+    )
+
+    buf = io.BytesIO()
+    buf.write(b"\xef\xbb\xbf")  # UTF-8 BOM，方便 Excel 打开
+    df.to_csv(buf, index=False, encoding="utf-8")
+    buf.seek(0)
+
+    note = (snap.get("note") or "").strip()
+    base = note or f"snapshot_{sid}"
+    # 去掉文件名非法字符
+    safe = re.sub(r'[\\/:*?"<>|\r\n\t]', "_", base).strip(". ") or f"snapshot_{sid}"
+    filename = f"{safe}.csv"
+
+    resp = Response(buf.getvalue(), mimetype="text/csv; charset=utf-8")
+    # RFC 5987：同时给 ASCII fallback 和 UTF-8 编码，兼容各种浏览器
+    ascii_fallback = quote(filename)
+    resp.headers["Content-Disposition"] = (
+        f"attachment; filename={ascii_fallback}; filename*=UTF-8''{ascii_fallback}"
+    )
+    return resp
 
 
 @app.route("/api/analyze/<code>", methods=["GET"])
