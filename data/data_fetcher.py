@@ -416,6 +416,71 @@ def get_realtime_quotes_from_em(codes: list, max_workers: int = 8) -> pd.DataFra
     from tqdm import tqdm
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
+    def _normalize_spot_df(df: pd.DataFrame) -> pd.DataFrame:
+        """标准化东方财富全市场行情字段。"""
+        if df.empty:
+            return pd.DataFrame()
+
+        column_mapping = {
+            "代码": "code",
+            "名称": "name",
+            "最新价": "price",
+            "涨跌幅": "pct_change",
+            "成交量": "volume",
+            "成交额": "turnover",
+            "换手率": "turnover_rate",
+            "市盈率-动态": "pe",
+            "市盈率": "pe",
+            "市净率": "pb",
+            "总市值": "market_cap",
+            "流通市值": "float_cap",
+        }
+
+        df = df.rename(columns={old: new for old, new in column_mapping.items() if old in df.columns})
+        if "code" not in df.columns:
+            return pd.DataFrame()
+
+        df["code"] = (
+            df["code"].astype(str)
+            .str.replace(r"^(SH|SZ|BJ|sh|sz|bj)", "", regex=True)
+            .str.zfill(6)
+        )
+        if codes:
+            code_set = set(codes)
+            df = df[df["code"].isin(code_set)]
+
+        if "name" not in df.columns:
+            df["name"] = df["code"].map(_STOCK_MAPPING).fillna(df["code"])
+
+        required_cols = [
+            "code", "name", "price", "pct_change", "volume", "turnover",
+            "turnover_rate", "pe", "pb", "market_cap", "float_cap"
+        ]
+        for col in required_cols:
+            if col not in df.columns:
+                df[col] = 0
+
+        for col in [
+            "price", "pct_change", "volume", "turnover",
+            "turnover_rate", "pe", "pb", "market_cap", "float_cap"
+        ]:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+
+        df = df[df["code"].notna()]
+        df = df[df["code"].str.len() == 6]
+        return df[required_cols].reset_index(drop=True)
+
+    try:
+        print("   使用东方财富批量行情接口...")
+        df_spot = ak.stock_zh_a_spot_em()
+        df_spot = _normalize_spot_df(df_spot)
+        if not df_spot.empty:
+            print(f"   ✅ 东方财富批量: 获取到 {len(df_spot)} 只股票")
+            return df_spot
+        print("   ⚠️  东方财富批量接口返回空数据，回落到逐股模式")
+    except Exception as e:
+        print(f"   ⚠️  东方财富批量接口失败: {str(e)[:80]}，回落到逐股模式")
+
     def _fetch_one(code):
         try:
             df = ak.stock_zh_a_hist(

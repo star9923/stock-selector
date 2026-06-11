@@ -1,6 +1,14 @@
 """
 app.py - Flask Web 服务（单线程稳定版）
 """
+import sys
+
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -20,12 +28,13 @@ import pandas as pd
 from datetime import datetime
 import os
 import json
+import time
 
 app = Flask(__name__)
 CORS(app)
 
 # 缓存最近一次选股结果
-cache = {"data": None, "timestamp": None, "params": None}
+cache = {"data": None, "timestamp": None, "params": None, "stats": None, "meta": None}
 
 
 @app.route("/")
@@ -44,10 +53,13 @@ def select_stocks():
     sentiment_weight = params.get("sentiment_weight", 0.2)
     max_workers = min(int(params.get("max_workers", 8)), 8)
     enable_sentiment = params.get("enable_sentiment", True)
+    enable_financial = params.get("enable_financial", True)
+    prefer_history_cache = params.get("prefer_history_cache", False)
     quote_source = params.get("quote_source", "auto")
     volume_top_n = int(params.get("volume_top_n", 500))
 
     try:
+        started = time.perf_counter()
         df = run_selection(
             top_n=top_n,
             tech_weight=tech_weight,
@@ -56,6 +68,8 @@ def select_stocks():
             min_score=min_score,
             max_workers=max_workers,
             enable_sentiment=enable_sentiment,
+            enable_financial=enable_financial,
+            prefer_history_cache=prefer_history_cache,
             quote_source=quote_source,
             volume_top_n=volume_top_n,
         )
@@ -76,6 +90,19 @@ def select_stocks():
             "avg_pe": round(df["pe"].mean(), 1),
             "avg_pb": round(df["pb"].mean(), 2),
         }
+        meta = {
+            "elapsed_seconds": round(time.perf_counter() - started, 2),
+            "analyzed_count": int(df.attrs.get("analyzed_count", 0)),
+            "quote_count": int(df.attrs.get("quote_count", 0)),
+            "enable_sentiment": bool(enable_sentiment),
+            "enable_financial": bool(enable_financial),
+            "prefer_history_cache": bool(prefer_history_cache),
+            "volume_top_n": volume_top_n,
+            "max_workers": max_workers,
+            "quote_source": quote_source,
+        }
+        cache["stats"] = stats
+        cache["meta"] = meta
 
         return jsonify({
             "success": True,
@@ -83,6 +110,7 @@ def select_stocks():
             "timestamp": cache["timestamp"],
             "count": len(df),
             "stats": stats,
+            "meta": meta,
         })
 
     except Exception as e:
@@ -100,6 +128,8 @@ def get_cache():
         "data": cache["data"],
         "timestamp": cache["timestamp"],
         "count": len(cache["data"]),
+        "stats": cache.get("stats"),
+        "meta": cache.get("meta"),
     })
 
 

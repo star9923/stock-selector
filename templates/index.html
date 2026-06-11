@@ -210,6 +210,38 @@
             flex-wrap: wrap;
             align-items: flex-end;
         }
+        .mode-strip {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .mode-option {
+            border: 2px solid #e9ecef;
+            background: #f8f9fa;
+            color: #343a40;
+            border-radius: 8px;
+            padding: 14px 16px;
+            cursor: pointer;
+            text-align: left;
+            transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+        }
+        .mode-option strong {
+            display: block;
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+        .mode-option span {
+            display: block;
+            color: #6c757d;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .mode-option.active {
+            background: #eef2ff;
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
         .control-group {
             flex: 1;
             min-width: 150px;
@@ -221,17 +253,52 @@
             color: #495057;
             font-size: 14px;
         }
-        .control-group input {
+        .control-group input,
+        .control-group select {
             width: 100%;
             padding: 10px 12px;
             border: 2px solid #e9ecef;
             border-radius: 8px;
             font-size: 14px;
             transition: border-color 0.2s;
+            background: white;
         }
-        .control-group input:focus {
+        .control-group input:focus,
+        .control-group select:focus {
             outline: none;
             border-color: #667eea;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 42px;
+            padding: 10px 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+        }
+        .checkbox-group input {
+            width: 18px;
+            height: 18px;
+            flex: 0 0 auto;
+        }
+        .checkbox-group span {
+            color: #495057;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .run-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .run-hint {
+            color: #6c757d;
+            font-size: 12px;
+            max-width: 260px;
+            line-height: 1.4;
         }
         .btn {
             padding: 12px 32px;
@@ -254,6 +321,11 @@
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
+        }
+        .table-wrap {
+            overflow-x: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
         }
         .status {
             padding: 15px 25px;
@@ -283,6 +355,34 @@
         .timestamp {
             color: #6c757d;
             font-size: 14px;
+        }
+        .selection-summary {
+            display: none;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        .selection-summary.show {
+            display: flex;
+        }
+        .summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 10px;
+            border-radius: 8px;
+            background: #f1f3f5;
+            color: #495057;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .summary-chip.good {
+            background: #d4edda;
+            color: #155724;
+        }
+        .summary-chip.warn {
+            background: #fff3cd;
+            color: #856404;
         }
         table {
             width: 100%;
@@ -342,6 +442,30 @@
             text-align: center;
             padding: 60px;
             color: #6c757d;
+        }
+        .source-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .source-item {
+            padding: 14px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            min-height: 88px;
+        }
+        .source-item strong {
+            display: block;
+            color: #212529;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+        .source-item span {
+            display: block;
+            color: #6c757d;
+            font-size: 12px;
+            line-height: 1.5;
         }
         .sector-card {
             background: white;
@@ -520,6 +644,67 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+        @media (max-width: 900px) {
+            .app-container {
+                display: block;
+            }
+            .sidebar {
+                position: relative;
+                width: 100%;
+                height: auto;
+            }
+            .sidebar-header {
+                padding: 18px 20px;
+            }
+            .sidebar-nav {
+                display: flex;
+                overflow-x: auto;
+                padding: 8px;
+            }
+            .nav-item {
+                flex: 0 0 auto;
+                border-left: none;
+                border-bottom: 3px solid transparent;
+                padding: 10px 14px;
+            }
+            .nav-item.active {
+                border-left-color: transparent;
+                border-bottom-color: white;
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            .header {
+                padding: 20px;
+            }
+            .content-wrapper {
+                padding: 20px;
+            }
+            .mode-strip {
+                grid-template-columns: 1fr;
+            }
+            .control-row {
+                gap: 14px;
+            }
+            .control-group {
+                min-width: 220px;
+            }
+            .results {
+                padding: 18px;
+            }
+            .results-header {
+                align-items: flex-start;
+                gap: 12px;
+                flex-direction: column;
+            }
+            .source-grid {
+                grid-template-columns: 1fr;
+            }
+            th, td {
+                padding: 10px 12px;
+                white-space: nowrap;
+            }
+        }
     </style>
 </head>
 <body>
@@ -564,10 +749,24 @@
                 </div>
                 <div class="content-wrapper">
                     <div class="controls">
+                        <div class="mode-strip" role="group" aria-label="选股模式">
+                            <button class="mode-option active" type="button" data-mode="fast" onclick="setSelectionMode('fast')">
+                                <strong>快速</strong>
+                                <span>成交量前 200，只跑技术+基本面，适合日常扫盘</span>
+                            </button>
+                            <button class="mode-option" type="button" data-mode="balanced" onclick="setSelectionMode('balanced')">
+                                <strong>均衡</strong>
+                                <span>成交量前 500，加入板块/热度情绪，结果更稳</span>
+                            </button>
+                            <button class="mode-option" type="button" data-mode="deep" onclick="setSelectionMode('deep')">
+                                <strong>深度</strong>
+                                <span>扩大样本和情绪分析，耗时更长，适合复盘</span>
+                            </button>
+                        </div>
                         <div class="control-row">
                             <div class="control-group">
                                 <label>数据源</label>
-                                <select id="quoteSource" style="width:100%; padding:10px 12px; border:2px solid #e9ecef; border-radius:8px; font-size:14px; background:white; cursor:pointer;">
+                                <select id="quoteSource">
                                     <option value="auto">自动选择（推荐）</option>
                                     <option value="sina">新浪财经</option>
                                     <option value="em">东方财富</option>
@@ -580,11 +779,11 @@
                             </div>
                             <div class="control-group">
                                 <label>最低得分</label>
-                                <input type="number" id="minScore" value="50" min="0" max="100" step="5">
+                                <input type="number" id="minScore" value="45" min="0" max="100" step="5">
                             </div>
                             <div class="control-group">
                                 <label>技术面权重</label>
-                                <input type="number" id="techWeight" value="0.6" min="0" max="1" step="0.1">
+                                <input type="number" id="techWeight" value="0.7" min="0" max="1" step="0.1">
                             </div>
                             <div class="control-group">
                                 <label>基本面权重</label>
@@ -592,13 +791,44 @@
                             </div>
                             <div class="control-group">
                                 <label>情绪面权重</label>
-                                <input type="number" id="sentimentWeight" value="0.2" min="0" max="1" step="0.1">
+                                <input type="number" id="sentimentWeight" value="0" min="0" max="1" step="0.1">
                             </div>
                             <div class="control-group">
                                 <label>成交量TopN</label>
-                                <input type="number" id="volumeTopN" value="500" min="0" max="5000" step="100" title="只分析当日成交量市场排名前 N 的股票，0 表示不限制">
+                                <input type="number" id="volumeTopN" value="200" min="0" max="5000" step="100" title="只分析当日成交量市场排名前 N 的股票，0 表示不限制">
                             </div>
-                            <button class="btn btn-primary" onclick="runSelection()">开始选股</button>
+                            <div class="control-group">
+                                <label>并发线程</label>
+                                <input type="number" id="maxWorkers" value="8" min="1" max="8" step="1" title="接口容易限流，建议 4-8">
+                            </div>
+                            <div class="control-group">
+                                <label>情绪分析</label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="enableSentiment">
+                                    <span>启用板块/热度</span>
+                                </label>
+                            </div>
+                            <div class="control-group">
+                                <label>财报指标</label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="enableFinancial">
+                                    <span>逐股拉取财务</span>
+                                </label>
+                            </div>
+                            <div class="control-group">
+                                <label>历史K线</label>
+                                <label class="checkbox-group">
+                                    <input type="checkbox" id="preferHistoryCache" checked>
+                                    <span>优先缓存</span>
+                                </label>
+                            </div>
+                            <div class="control-group">
+                                <label>&nbsp;</label>
+                                <div class="run-actions">
+                                    <button id="runSelectionBtn" class="btn btn-primary" onclick="runSelection()">开始选股</button>
+                                    <span id="runHint" class="run-hint">快速模式会跳过较慢的情绪数据，通常更适合盘中反复刷新。</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -612,6 +842,7 @@
                                 <div class="timestamp" id="timestamp"></div>
                             </div>
                         </div>
+                        <div id="selectionSummary" class="selection-summary"></div>
                         <div id="tableContainer">
                             <div class="empty">点击"开始选股"运行分析</div>
                         </div>
@@ -771,6 +1002,28 @@
                                 <li><strong>东方财富</strong>：适合交易时间查看板块列表</li>
                                 <li><strong>板块热度</strong>：建议在交易时间使用，或依赖缓存数据</li>
                             </ul>
+                        </div>
+
+                        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 20px;">
+                            <h4 style="margin-bottom: 15px; color: #495057;">选股行情源策略</h4>
+                            <div class="source-grid">
+                                <div class="source-item">
+                                    <strong>新浪财经</strong>
+                                    <span>默认实时行情源，批量快，适合选股预筛。</span>
+                                </div>
+                                <div class="source-item">
+                                    <strong>东方财富</strong>
+                                    <span>备用行情源，已优先走批量接口，也用于板块和股吧数据。</span>
+                                </div>
+                                <div class="source-item">
+                                    <strong>雪球</strong>
+                                    <span>适合作为社区热度参考，不作为主行情源。</span>
+                                </div>
+                                <div class="source-item">
+                                    <strong>Tushare / baostock / mootdx</strong>
+                                    <span>可作为后续可选增强；当前免费主线仍以 AKShare 聚合公开源为主。</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1181,11 +1434,112 @@
             });
 
             html += '</tbody></table>';
+            html = `<div class="table-wrap">${html}</div>`;
             document.getElementById('tableContainer').innerHTML = html;
         }
 
+        function renderSelectionSummary(meta = {}, stats = {}) {
+            const el = document.getElementById('selectionSummary');
+            if (!el) return;
+            const hasMeta = meta && Object.keys(meta).length > 0;
+            const hasStats = stats && Object.keys(stats).length > 0;
+            if (!hasMeta && !hasStats) {
+                el.innerHTML = '';
+                el.classList.remove('show');
+                return;
+            }
+
+            const chips = [];
+            if (meta.elapsed_seconds) {
+                chips.push(`<span class="summary-chip good">耗时 ${meta.elapsed_seconds}s</span>`);
+            }
+            if (meta.analyzed_count) {
+                chips.push(`<span class="summary-chip">分析样本 ${meta.analyzed_count} 只</span>`);
+            }
+            if (meta.quote_count) {
+                chips.push(`<span class="summary-chip">行情 ${meta.quote_count} 条</span>`);
+            }
+            if (meta.volume_top_n !== undefined && meta.volume_top_n !== null) {
+                chips.push(`<span class="summary-chip">成交量 TopN ${meta.volume_top_n || '不限'}</span>`);
+            }
+            if (meta.max_workers) {
+                chips.push(`<span class="summary-chip">并发 ${meta.max_workers}</span>`);
+            }
+            if (typeof meta.enable_sentiment === 'boolean') {
+                chips.push(`<span class="summary-chip ${meta.enable_sentiment ? 'warn' : 'good'}">情绪 ${meta.enable_sentiment ? '开启' : '关闭'}</span>`);
+            }
+            if (typeof meta.enable_financial === 'boolean') {
+                chips.push(`<span class="summary-chip ${meta.enable_financial ? 'warn' : 'good'}">财报 ${meta.enable_financial ? '逐股拉取' : '跳过'}</span>`);
+            }
+            if (typeof meta.prefer_history_cache === 'boolean') {
+                chips.push(`<span class="summary-chip ${meta.prefer_history_cache ? 'good' : 'warn'}">历史K线 ${meta.prefer_history_cache ? '优先缓存' : '实时获取'}</span>`);
+            }
+            if (stats.avg_total !== undefined && stats.avg_total !== null) {
+                chips.push(`<span class="summary-chip">平均分 ${stats.avg_total}</span>`);
+            }
+
+            el.innerHTML = chips.join('');
+            el.classList.toggle('show', chips.length > 0);
+        }
+
+        const selectionModes = {
+            fast: {
+                minScore: 45,
+                techWeight: 0.7,
+                fundWeight: 0.3,
+                sentimentWeight: 0,
+                volumeTopN: 200,
+                maxWorkers: 8,
+                enableSentiment: false,
+                enableFinancial: false,
+                preferHistoryCache: true,
+                hint: '快速模式会跳过较慢的情绪数据，通常更适合盘中反复刷新。'
+            },
+            balanced: {
+                minScore: 45,
+                techWeight: 0.5,
+                fundWeight: 0.3,
+                sentimentWeight: 0.2,
+                volumeTopN: 500,
+                maxWorkers: 8,
+                enableSentiment: true,
+                enableFinancial: true,
+                preferHistoryCache: false,
+                hint: '均衡模式会加入板块和热度数据，速度适中，适合常规选股。'
+            },
+            deep: {
+                minScore: 40,
+                techWeight: 0.45,
+                fundWeight: 0.3,
+                sentimentWeight: 0.25,
+                volumeTopN: 1000,
+                maxWorkers: 6,
+                enableSentiment: true,
+                enableFinancial: true,
+                preferHistoryCache: false,
+                hint: '深度模式扩大分析样本，接口调用更多，适合收盘后复盘。'
+            }
+        };
+
+        function setSelectionMode(mode) {
+            const config = selectionModes[mode] || selectionModes.fast;
+            document.querySelectorAll('.mode-option').forEach(item => {
+                item.classList.toggle('active', item.dataset.mode === mode);
+            });
+            document.getElementById('minScore').value = config.minScore;
+            document.getElementById('techWeight').value = config.techWeight;
+            document.getElementById('fundWeight').value = config.fundWeight;
+            document.getElementById('sentimentWeight').value = config.sentimentWeight;
+            document.getElementById('volumeTopN').value = config.volumeTopN;
+            document.getElementById('maxWorkers').value = config.maxWorkers;
+            document.getElementById('enableSentiment').checked = config.enableSentiment;
+            document.getElementById('enableFinancial').checked = config.enableFinancial;
+            document.getElementById('preferHistoryCache').checked = config.preferHistoryCache;
+            document.getElementById('runHint').textContent = config.hint;
+        }
+
         async function runSelection() {
-            const btn = document.querySelector('.btn-primary');
+            const btn = document.getElementById('runSelectionBtn');
             btn.disabled = true;
             btn.textContent = '分析中...';
 
@@ -1193,6 +1547,7 @@
                 <div class="loading">
                     <div class="spinner"></div>
                     <p>正在分析 A 股市场，请稍候...</p>
+                    <p style="font-size:13px; margin-top:8px;">可用成交量 TopN、关闭情绪分析来缩短等待时间。</p>
                 </div>
             `;
 
@@ -1204,6 +1559,10 @@
                 sentiment_weight: parseFloat(document.getElementById('sentimentWeight').value),
                 quote_source: document.getElementById('quoteSource').value,
                 volume_top_n: parseInt(document.getElementById('volumeTopN').value) || 0,
+                max_workers: parseInt(document.getElementById('maxWorkers').value) || 8,
+                enable_sentiment: document.getElementById('enableSentiment').checked,
+                enable_financial: document.getElementById('enableFinancial').checked,
+                prefer_history_cache: document.getElementById('preferHistoryCache').checked,
             };
 
             try {
@@ -1216,17 +1575,22 @@
                 const result = await res.json();
 
                 if (result.success) {
-                    showStatus(`✅ 选股完成，共找到 ${result.count} 只股票`, 'success');
+                    const meta = result.meta || {};
+                    const metaText = meta.analyzed_count ? `，分析样本 ${meta.analyzed_count} 只` : '';
+                    showStatus(`✅ 选股完成，共找到 ${result.count} 只股票${metaText}`, 'success');
                     document.getElementById('timestamp').textContent = `更新时间: ${result.timestamp}`;
+                    renderSelectionSummary(meta, result.stats || {});
                     renderTable(result.data);
                     document.getElementById('saveSnapshotBtn').style.display = '';
                 } else {
                     showStatus(`❌ ${result.message}`, 'error');
+                    renderSelectionSummary();
                     document.getElementById('tableContainer').innerHTML = `<div class="empty">${result.message}</div>`;
                     document.getElementById('saveSnapshotBtn').style.display = 'none';
                 }
             } catch (err) {
                 showStatus(`❌ 请求失败: ${err.message}`, 'error');
+                renderSelectionSummary();
                 document.getElementById('tableContainer').innerHTML = '<div class="empty">请求失败，请重试</div>';
             } finally {
                 btn.disabled = false;
@@ -1236,11 +1600,13 @@
 
         // 页面加载时尝试获取缓存数据
         window.onload = async () => {
+            setSelectionMode('fast');
             try {
                 const res = await fetch('/api/cache');
                 const result = await res.json();
                 if (result.success) {
                     document.getElementById('timestamp').textContent = `更新时间: ${result.timestamp}`;
+                    renderSelectionSummary(result.meta || {}, result.stats || {});
                     renderTable(result.data);
                     document.getElementById('saveSnapshotBtn').style.display = '';
                 }

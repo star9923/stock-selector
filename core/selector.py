@@ -26,17 +26,18 @@ OVERALL_TIMEOUT = 30 * 60
 
 
 def _analyze_single(code, realtime_dict, tech_weight, fund_weight, sentiment_weight, min_score,
-                    hot_stocks, board_sentiment, stock_board_map):
+                    hot_stocks, board_sentiment, stock_board_map, enable_financial=True,
+                    prefer_history_cache=False):
     """分析单只股票，返回结果字典或 None（线程安全）"""
     try:
-        hist = get_stock_history_with_fallback(code, days=120)
+        hist = get_stock_history_with_fallback(code, days=120, prefer_cache=prefer_history_cache)
         if hist.empty or len(hist) < 60:
             return None
 
         hist = add_indicators(hist)
         tech = score_technical(hist)
 
-        financial = get_financial_indicator(code)
+        financial = get_financial_indicator(code) if enable_financial else {}
         fund = score_fundamental(realtime_dict, financial)
 
         # 情绪分析
@@ -87,6 +88,8 @@ def run_selection(
     min_score: float = 40.0,
     max_workers: int = 8,
     enable_sentiment: bool = True,
+    enable_financial: bool = True,
+    prefer_history_cache: bool = False,
     quote_source: str = "auto",
     volume_top_n: int = 500,
 ) -> pd.DataFrame:
@@ -99,6 +102,8 @@ def run_selection(
     :param min_score: 最低综合得分阈值
     :param max_workers: 并发线程数（建议 4~16，过高易触发限流）
     :param enable_sentiment: 是否启用情绪分析（较慢）
+    :param enable_financial: 是否逐股获取财务指标（较慢；关闭时只用实时行情字段）
+    :param prefer_history_cache: 是否优先使用 1 天内历史 K 线缓存
     :param quote_source: 数据源选择 (auto/sina/em/xueqiu)
     :param volume_top_n: 只分析当日成交量市场前 N 只股票（默认500），0 或负数表示不限制
     :return: 选股结果 DataFrame
@@ -186,6 +191,8 @@ def run_selection(
                 hot_stocks,
                 board_sentiment,
                 stock_board_map,
+                enable_financial,
+                prefer_history_cache,
             ): code
             for code in filtered_codes
             if code in realtime_map
@@ -231,5 +238,11 @@ def run_selection(
         .head(top_n)
         .reset_index(drop=True)
     )
+    df_result.attrs["analyzed_count"] = len(filtered_codes)
+    df_result.attrs["quote_count"] = len(df_realtime)
+    df_result.attrs["enable_sentiment"] = enable_sentiment
+    df_result.attrs["enable_financial"] = enable_financial
+    df_result.attrs["prefer_history_cache"] = prefer_history_cache
+    df_result.attrs["volume_top_n"] = volume_top_n
     df_result.index += 1
     return df_result

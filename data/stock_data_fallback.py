@@ -62,16 +62,21 @@ def load_stock_history_cache(code: str, max_age_days: int = 1) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_stock_history_with_fallback(code: str, days: int = 120) -> pd.DataFrame:
+def get_stock_history_with_fallback(code: str, days: int = 120, prefer_cache: bool = False) -> pd.DataFrame:
     """
     获取股票历史数据，失败时使用缓存
-    优先级：
-    1. 尝试从API获取
-    2. 从缓存加载（1天内）
+    :param code: 股票代码
+    :param days: 获取最近 N 天
+    :param prefer_cache: 是否优先使用 1 天内本地缓存，适合盘中重复快速筛选
     """
     from data.data_fetcher import get_daily_history
 
-    # 1. 尝试从API获取
+    if prefer_cache:
+        df = load_stock_history_cache(code, max_age_days=1)
+        if not df.empty and len(df) >= 60:
+            return df.tail(days).reset_index(drop=True)
+
+    # 1. 尝试从 API 获取
     df = get_daily_history(code, days)
     if not df.empty and len(df) >= 60:
         save_stock_history_cache(code, df)
@@ -80,7 +85,7 @@ def get_stock_history_with_fallback(code: str, days: int = 120) -> pd.DataFrame:
     # 2. 从缓存加载
     df = load_stock_history_cache(code, max_age_days=1)
     if not df.empty and len(df) >= 60:
-        return df
+        return df.tail(days).reset_index(drop=True)
 
     # 无可用数据
     return pd.DataFrame()
